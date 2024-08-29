@@ -116,7 +116,11 @@ def main():
     print(result.response)
 
     # inspect number of LLM calls and tokens
-    print(f"\n\nLLM calls: {result.llm_calls}. LLM tokens: {result.prompt_tokens}")
+    print(
+        f"\n\nLLM calls: {result.llm_calls}. "
+        f"total prompt tokens: {result.prompt_tokens}. "
+        f"total output tokens: {result.output_tokens}"
+    )
 
 
 if __name__ == "__main__":

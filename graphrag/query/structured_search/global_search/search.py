@@ -113,12 +113,14 @@ class GlobalSearch(BaseSearch):
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_start(context_chunks)  # type: ignore
-        map_responses = await asyncio.gather(*[
-            self._map_response_single_batch(
-                context_data=data, query=query, **self.map_llm_params
-            )
-            for data in context_chunks
-        ])
+        map_responses = await asyncio.gather(
+            *[
+                self._map_response_single_batch(
+                    context_data=data, query=query, **self.map_llm_params
+                )
+                for data in context_chunks
+            ]
+        )
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_end(map_responses)  # type: ignore
@@ -155,17 +157,20 @@ class GlobalSearch(BaseSearch):
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_start(context_chunks)  # type: ignore
-        map_responses = await asyncio.gather(*[
-            self._map_response_single_batch(
-                context_data=data, query=query, **self.map_llm_params
-            )
-            for data in context_chunks
-        ])
+        map_responses = await asyncio.gather(
+            *[
+                self._map_response_single_batch(
+                    context_data=data, query=query, **self.map_llm_params
+                )
+                for data in context_chunks
+            ]
+        )
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_end(map_responses)
         map_llm_calls = sum(response.llm_calls for response in map_responses)
         map_prompt_tokens = sum(response.prompt_tokens for response in map_responses)
+        map_output_tokens = sum(response.output_tokens for response in map_responses)
 
         # Step 2: Combine the intermediate answers from step 2 to generate the final answer
         reduce_response = await self._reduce_response(
@@ -184,6 +189,7 @@ class GlobalSearch(BaseSearch):
             completion_time=time.time() - start_time,
             llm_calls=map_llm_calls + reduce_response.llm_calls,
             prompt_tokens=map_prompt_tokens + reduce_response.prompt_tokens,
+            output_tokens=map_output_tokens + reduce_response.output_tokens,
         )
 
     def search(
@@ -236,6 +242,7 @@ class GlobalSearch(BaseSearch):
                 completion_time=time.time() - start_time,
                 llm_calls=1,
                 prompt_tokens=num_tokens(search_prompt, self.token_encoder),
+                output_tokens=num_tokens(search_response, self.token_encoder),
             )
 
         except Exception:
@@ -247,6 +254,7 @@ class GlobalSearch(BaseSearch):
                 completion_time=time.time() - start_time,
                 llm_calls=1,
                 prompt_tokens=num_tokens(search_prompt, self.token_encoder),
+                output_tokens=0,
             )
 
     def parse_search_response(self, search_response: str) -> list[dict[str, Any]]:
@@ -300,17 +308,17 @@ class GlobalSearch(BaseSearch):
                         continue
                     if "answer" not in element or "score" not in element:
                         continue
-                    key_points.append({
-                        "analyst": index,
-                        "answer": element["answer"],
-                        "score": element["score"],
-                    })
+                    key_points.append(
+                        {
+                            "analyst": index,
+                            "answer": element["answer"],
+                            "score": element["score"],
+                        }
+                    )
 
             # filter response with score = 0 and rank responses by descending order of score
             filtered_key_points = [
-                point
-                for point in key_points
-                if point["score"] > 0  # type: ignore
+                point for point in key_points if point["score"] > 0  # type: ignore
             ]
 
             if len(filtered_key_points) == 0 and not self.allow_general_knowledge:
@@ -325,6 +333,7 @@ class GlobalSearch(BaseSearch):
                     completion_time=time.time() - start_time,
                     llm_calls=0,
                     prompt_tokens=0,
+                    output_tokens=0,
                 )
 
             filtered_key_points = sorted(
@@ -378,6 +387,7 @@ class GlobalSearch(BaseSearch):
                 completion_time=time.time() - start_time,
                 llm_calls=1,
                 prompt_tokens=num_tokens(search_prompt, self.token_encoder),
+                output_tokens=num_tokens(search_response, self.token_encoder),
             )
         except Exception:
             log.exception("Exception in reduce_response")
@@ -388,6 +398,7 @@ class GlobalSearch(BaseSearch):
                 completion_time=time.time() - start_time,
                 llm_calls=1,
                 prompt_tokens=num_tokens(search_prompt, self.token_encoder),
+                output_tokens=0,
             )
 
     async def _stream_reduce_response(
@@ -406,17 +417,17 @@ class GlobalSearch(BaseSearch):
                     continue
                 if "answer" not in element or "score" not in element:
                     continue
-                key_points.append({
-                    "analyst": index,
-                    "answer": element["answer"],
-                    "score": element["score"],
-                })
+                key_points.append(
+                    {
+                        "analyst": index,
+                        "answer": element["answer"],
+                        "score": element["score"],
+                    }
+                )
 
         # filter response with score = 0 and rank responses by descending order of score
         filtered_key_points = [
-            point
-            for point in key_points
-            if point["score"] > 0  # type: ignore
+            point for point in key_points if point["score"] > 0  # type: ignore
         ]
 
         if len(filtered_key_points) == 0 and not self.allow_general_knowledge:
