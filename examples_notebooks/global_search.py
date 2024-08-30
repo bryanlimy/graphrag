@@ -46,11 +46,9 @@ def set_llm():
 
 
 def load_community_report():
-    entity_df = pd.read_parquet(f"{INPUT_DIR}/{ENTITY_TABLE}.parquet")
-    report_df = pd.read_parquet(f"{INPUT_DIR}/{COMMUNITY_REPORT_TABLE}.parquet")
-    entity_embedding_df = pd.read_parquet(
-        f"{INPUT_DIR}/{ENTITY_EMBEDDING_TABLE}.parquet"
-    )
+    entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
+    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
+    entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
 
     reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
     entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
@@ -62,8 +60,41 @@ def load_community_report():
 
 
 def main():
+    query = "What is the major conflict in this story and who are the protagonist and antagonist?"
     llm, token_encoder = set_llm()
-    reports, entities = load_community_report()
+
+    entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
+    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
+    entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
+
+    reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
+    entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
+    print(f"Total report count: {len(report_df)}")
+    print(
+        f"Report count after filtering by community level {COMMUNITY_LEVEL}: {len(reports)}"
+    )
+
+    SYSTEM_MESSAGE = """
+    You are a helpful assistant responsible for deciding whether the provided information is relevant to a given question.
+    Please answer YES, if the provided title and description are helpful in answering the question, even if only in parts. Answer NO otherwise. If the answer is NO, please state why the information is not relevant.
+    
+    Title: {title}
+    Description: {description}
+    """
+
+    # find all community summary at level 0
+    for _, report in report_df.loc[report_df["level"] == 0].iterrows():
+        messages = [
+            {
+                "role": "system",
+                "content": SYSTEM_MESSAGE.format(
+                    title=report.title, description=report.full_content
+                ),
+            },
+            {"role": "user", "content": query},
+        ]
+        decision = llm.generate(messages=messages, max_tokens=2000, temperature=0.0)
+        print(decision)
 
     context_builder = GlobalCommunityContext(
         community_reports=reports,
@@ -109,9 +140,7 @@ def main():
         response_type="multiple paragraphs",  # free form text describing the response type and format, can be anything, e.g. prioritized list, single paragraph, multiple paragraphs, multiple-page report
     )
 
-    result = search_engine.search(
-        "What is the major conflict in this story and who are the protagonist and antagonist?"
-    )
+    result = search_engine.search(query=query)
 
     print(result.response)
 
