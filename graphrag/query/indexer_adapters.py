@@ -62,12 +62,13 @@ def read_indexer_relationships(final_relationships: pd.DataFrame) -> list[Relati
 def read_indexer_reports(
     final_community_reports: pd.DataFrame,
     final_nodes: pd.DataFrame,
-    community_level: int,
+    community_level: int | None,
 ) -> list[CommunityReport]:
     """Read in the Community Reports from the raw indexing outputs."""
     report_df = final_community_reports
     entity_df = final_nodes
-    entity_df = _filter_under_community_level(entity_df, community_level)
+    if community_level is not None:
+        entity_df = _filter_under_community_level(entity_df, community_level)
     entity_df.loc[:, "community"] = entity_df["community"].fillna(-1)
     entity_df.loc[:, "community"] = entity_df["community"].astype(int)
 
@@ -75,7 +76,8 @@ def read_indexer_reports(
     entity_df["community"] = entity_df["community"].astype(str)
     filtered_community_df = entity_df["community"].drop_duplicates()
 
-    report_df = _filter_under_community_level(report_df, community_level)
+    if community_level is not None:
+        report_df = _filter_under_community_level(report_df, community_level)
     report_df = report_df.merge(filtered_community_df, on="community", how="inner")
 
     return read_community_reports(
@@ -90,13 +92,14 @@ def read_indexer_reports(
 def read_indexer_entities(
     final_nodes: pd.DataFrame,
     final_entities: pd.DataFrame,
-    community_level: int,
+    community_level: int | None,
 ) -> list[Entity]:
     """Read in the Entities from the raw indexing outputs."""
     entity_df = final_nodes
     entity_embedding_df = final_entities
 
-    entity_df = _filter_under_community_level(entity_df, community_level)
+    if community_level is not None:
+        entity_df = _filter_under_community_level(entity_df, community_level)
     entity_df = cast(pd.DataFrame, entity_df[["title", "degree", "community"]]).rename(
         columns={"title": "name", "degree": "rank"}
     )
