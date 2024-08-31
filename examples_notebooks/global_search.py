@@ -177,6 +177,7 @@ def dynamic_community_selection(
             f"Summary: {report.summary}\nRelevant: {decision}\n\n"
         )
         if decision == "YES":
+            # TODO what should we do if one child is relevant but another is not? Should we keep the parent node or not in this case?
             relevant_communities.append(community)
             sub_communities = community_hierarchy.loc[
                 community_hierarchy["community"] == community
