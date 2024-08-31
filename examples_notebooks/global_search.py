@@ -1,5 +1,5 @@
 import os
-
+import asyncio
 import pandas as pd
 import tiktoken
 from collections import deque
@@ -12,13 +12,7 @@ from graphrag.query.structured_search.global_search.community_context import (
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
 from graphrag.query.llm.base import BaseLLM
-from graphrag.query.input.loaders.dfs import (
-    read_community_reports,
-    read_covariates,
-    read_entities,
-    read_relationships,
-    read_text_units,
-)
+
 
 # parquet files generated from indexing pipeline
 INPUT_DIR = "./inputs/operation dulce"
@@ -122,16 +116,16 @@ def fix_community_selection():
 
 
 SYSTEM_MESSAGE = """
-You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only in part relevant.
-Answer YES, if the provided information are useful in answering the question.
-Answer NO if the information is not relevant at all to the question.
-Answer UNSURE if you are not sure whether or not the information is relevant.
+You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
+
+Return "0" if the information is not relevant at all to the question.
+Return "1" if the provided information is useful, helpful or relevant to the question.
 
 #######
--Data-
+Information
 {description}
 ######
--Question
+Question
 {question}
 """
 
@@ -161,24 +155,24 @@ def dynamic_community_selection(
                     description=report.full_content, question=query
                 ),
             },
-            {
-                "role": "user",
-                "content": f"Is the provided information relevant to the question: {query}?",
-            },
+            {"role": "user", "content": query},
         ]
         prompt_tokens += len(token_encoder.encode(messages[0]["content"])) + len(
             token_encoder.encode(messages[1]["content"])
         )
-        decision = llm.generate(messages=messages, max_tokens=2000, temperature=0.0)
+        decision = asyncio.run(
+            llm.agenerate(messages=messages, max_tokens=2000, temperature=0.0)
+        )
         output_tokens += len(token_encoder.encode(decision))
         LLM_calls += 1
         print(
             f"Community {community} (level: {report.level})\n"
             f"Summary: {report.summary}\nRelevant: {decision}\n\n"
         )
-        if decision == "YES":
+        if decision[0] == "1":
             # TODO what should we do if one child is relevant but another is not? Should we keep the parent node or not in this case?
-            relevant_communities.append(community)
+            if decision[0] == "1":
+                relevant_communities.append(community)
             sub_communities = community_hierarchy.loc[
                 community_hierarchy["community"] == community
             ]
