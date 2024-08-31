@@ -163,7 +163,7 @@ def dynamic_community_selection(
             },
             {
                 "role": "user",
-                "content": f"Is the provided information relevant to the question: {query}",
+                "content": f"Is the provided information relevant to the question: {query}?",
             },
         ]
         prompt_tokens += len(token_encoder.encode(messages[0]["content"])) + len(
@@ -185,7 +185,9 @@ def dynamic_community_selection(
                 queue.append(community_df.sub_community)
 
     assert len(relevant_communities), f"Cannot find any relevant community reports"
-    relevant_report_df = report_df.loc[report_df["community"] == relevant_communities]
+    relevant_report_df = report_df.loc[
+        report_df["community"].isin(relevant_communities)
+    ]
 
     entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
     entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
@@ -197,19 +199,19 @@ def dynamic_community_selection(
     return reports, entities, LLM_calls, prompt_tokens, output_tokens
 
 
-def main():
+def main(use_dynamic_selection: bool = True):
     query = "What is the major conflict in this story and who are the protagonist and antagonist?"
     llm, token_encoder = set_llm()
 
-    if False:
-        reports, entities, LLM_calls, prompt_tokens, output_tokens = (
-            fix_community_selection()
-        )
-    else:
+    if use_dynamic_selection:
         reports, entities, LLM_calls, prompt_tokens, output_tokens = (
             dynamic_community_selection(
                 llm=llm, token_encoder=token_encoder, query=query
             )
+        )
+    else:
+        reports, entities, LLM_calls, prompt_tokens, output_tokens = (
+            fix_community_selection()
         )
 
     context_builder = GlobalCommunityContext(
