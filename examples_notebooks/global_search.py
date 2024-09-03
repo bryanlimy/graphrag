@@ -1,7 +1,7 @@
 import asyncio
 import os
 from collections import deque
-
+import numpy as np
 import graphrag.index.graph.extractors.community_reports.schemas as schemas
 import pandas as pd
 import tiktoken
@@ -14,6 +14,14 @@ from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
+from sklearn.metrics import cohen_kappa_score
+
+from typing import List
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pathlib import Path
+from collections import Counter
 
 # parquet files generated from indexing pipeline
 # INPUT_DIR = "./inputs/operation dulce"
@@ -117,11 +125,54 @@ def fix_community_selection():
     return reports, entities, 0, 0, 0
 
 
-SYSTEM_MESSAGE = """
+def plot_agreement(kappa: List[float], filename: Path = None):
+    figure, ax = plt.subplots(nrows=1, ncols=1, figsize=(3, 2), dpi=240)
+
+    df = pd.DataFrame({"kappa": kappa})
+    p = sns.histplot(
+        df,
+        x="kappa",
+        bins=20,
+        binrange=(-1, 1),
+        color="black",
+        stat="probability",
+        fill=False,
+        linewidth=1,
+        clip_on=False,
+        alpha=0.8,
+        ax=ax,
+    )
+    ax.axvline(
+        x=0,
+        color="black",
+        alpha=0.3,
+        linestyle="dotted",
+        linewidth=1,
+        zorder=-1,
+    )
+    x_ticks = np.linspace(-1.0, 1.0, 3)
+    ax.set_xlim(x_ticks[0], x_ticks[-1])
+    ax.set_xticks(x_ticks, labels=np.round(x_ticks, 1), fontsize=9)
+    ax.set_xlabel("cohen's kappa score", fontsize=10, labelpad=0)
+    y_ticks = np.linspace(0, 1, 3)
+    ax.set_ylim(y_ticks[0], y_ticks[-1])
+    ax.set_yticks(y_ticks, labels=(100 * y_ticks).astype(int), fontsize=9)
+    ax.tick_params(axis="both", which="both", length=2, pad=1, width=0.8)
+    sns.despine(ax, trim=True)
+    if filename is not None:
+        filename.parent.mkdir(parents=True, exist_ok=True)
+        figure.savefig(filename, dpi=240, bbox_inches="tight", pad_inches=0.02)
+    else:
+        plt.show()
+    plt.close(figure)
+
+
+MESSAGE_1 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
 Return "0" if the information is not relevant at all to the question.
 Return "1" if the provided information is useful, helpful or relevant to the question.
+Return "2" if the provided information is not sufficient to make a decision.
 
 #######
 Information
@@ -129,6 +180,29 @@ Information
 ######
 Question
 {question}
+######
+Return "0" if the information is not relevant at all to the question.
+Return "1" if the provided information is useful, helpful or relevant to the question.
+Return "2" if the provided information is not sufficient to make a decision.
+"""
+
+MESSAGE_2 = """
+You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
+
+Return "2" if the provided information is not sufficient to make a decision.
+Return "1" if the provided information is useful, helpful or relevant to the question.
+Return "0" if the information is not relevant at all to the question.
+
+#######
+Information
+{description}
+######
+Question
+{question}
+######
+Return "2" if the provided information is not sufficient to make a decision.
+Return "1" if the provided information is useful, helpful or relevant to the question.
+Return "0" if the information is not relevant at all to the question.
 """
 
 
@@ -142,8 +216,62 @@ def check_community_hierarchy(
     print(f"Cannot find the following sub-communities in report_df: {sorted(dne)}\n")
 
 
+def is_relevant(
+    llm: BaseLLM,
+    token_encoder: tiktoken.Encoding,
+    query: str,
+    report: pd.DataFrame,
+    num_repeats: int = 1,
+):
+    info = {"LLM_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
+
+    decisions1, decisions2 = [], []
+    for i in (0, 1):
+        message = MESSAGE_1 if i == 0 else MESSAGE_2
+        for repeat in range(num_repeats):
+            messages = [
+                {
+                    "role": "system",
+                    "content": message.format(
+                        description=report.full_content, question=query
+                    ),
+                },
+                {"role": "user", "content": query},
+            ]
+
+            decision = asyncio.run(
+                llm.agenerate(messages=messages, max_tokens=2000, temperature=0.0)
+            )
+            # decision = llm.generate(messages=messages, max_tokens=2000, temperature=0.0)
+
+            if i % 2 == 0:
+                decisions1.append(decision)
+            else:
+                decisions2.append(decision)
+
+            info["LLM_calls"] += 1
+            info["prompt_tokens"] += len(
+                token_encoder.encode(messages[0]["content"])
+            ) + len(token_encoder.encode(messages[1]["content"]))
+            info["output_tokens"] += len(token_encoder.encode(decision))
+
+    # select the decision with the most votes
+    decisions = decisions1 + decisions2
+    options, counts = np.unique(decisions, return_counts=True)
+    decision = options[np.argmax(counts)]
+
+    info["kappa"] = 1
+    if not np.array_equal(decisions1, decisions2):
+        info["kappa"] = cohen_kappa_score(decisions1, decisions2)
+
+    return decision, info
+
+
 def dynamic_community_selection(
-    llm: BaseLLM, token_encoder: tiktoken.Encoding, query: str
+    llm: BaseLLM,
+    token_encoder: tiktoken.Encoding,
+    query: str,
+    keep_parent: bool = False,
 ):
     community_tree = get_community_hierarchy()
     report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
@@ -154,30 +282,31 @@ def dynamic_community_selection(
 
     queue = deque(report_df.loc[report_df["level"] == 0]["community"])
 
-    LLM_calls, prompt_tokens, output_tokens = 0, 0, 0
+    LLM_calls, prompt_tokens, output_tokens, kappa_scores = 0, 0, 0, []
     relevant_communities = set()
+    decisions = []
     while queue:
         community = queue.popleft()
         report = report_df.loc[report_df["community"] == community]
         assert (
             len(report) == 1
         ), f"Each community ({community}) should only have one report"
+
         report = report.iloc[0]
-        messages = [
-            {
-                "role": "system",
-                "content": SYSTEM_MESSAGE.format(
-                    description=report.full_content, question=query
-                ),
-            },
-            {"role": "user", "content": query},
-        ]
-        prompt_tokens += len(token_encoder.encode(messages[0]["content"])) + len(
-            token_encoder.encode(messages[1]["content"])
+
+        decision, info = is_relevant(
+            llm=llm,
+            token_encoder=token_encoder,
+            query=query,
+            report=report,
+            num_repeats=3,
         )
-        decision = llm.generate(messages=messages, max_tokens=2000, temperature=0.0)
-        output_tokens += len(token_encoder.encode(decision))
-        LLM_calls += 1
+
+        LLM_calls += info["LLM_calls"]
+        prompt_tokens += info["prompt_tokens"]
+        output_tokens += info["output_tokens"]
+        decisions.append(decision)
+        kappa_scores.append(info["kappa"])
 
         statement = f"Community {community} (level: {report.level}) {report.title}\n"
 
@@ -193,17 +322,19 @@ def dynamic_community_selection(
                 else:
                     queue.append(sub_community)
                     append_communities.append(sub_community)
+
             relevant_communities.add(community)
 
             # remove parent node since the current node is deemed relevant
-            parent_community = community_tree.loc[
-                community_tree["sub_community"] == community
-            ]
-            if len(parent_community):
-                assert len(parent_community) == 1
-                relevant_communities.discard(parent_community.iloc[0].community)
+            if not keep_parent:
+                parent_community = community_tree.loc[
+                    community_tree["sub_community"] == community
+                ]
+                if len(parent_community):
+                    assert len(parent_community) == 1
+                    relevant_communities.discard(parent_community.iloc[0].community)
 
-        statement += f"Relevant: {decision}"
+        statement += f"Relevant: {decision} (kappa: {info['kappa']:.02f})"
         if append_communities:
             statement += f" (add communities {append_communities} to queue)"
         statement += "\n"
@@ -214,13 +345,17 @@ def dynamic_community_selection(
         report_df["community"].isin(relevant_communities)
     ]
 
+    print(f"Decision distribution: {Counter(decisions)}")
+    print(f"Average cohen's kappa score: {np.mean(kappa_scores):.02f}.")
+    plot_agreement(kappa_scores, filename=Path("figures/cohen_kappa_score.jpg"))
+
     entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
     entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
 
     reports = read_indexer_reports(relevant_report_df, entity_df, None)
     entities = read_indexer_entities(entity_df, entity_embedding_df, None)
     print(f"Total report count: {len(report_df)}")
-    print(f"Report count after dynamic community selection: {len(reports)}\n\n")
+    print(f"Report count after dynamic community selection: {len(reports)}\n")
     return reports, entities, LLM_calls, prompt_tokens, output_tokens
 
 
