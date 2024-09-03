@@ -1,21 +1,23 @@
-import os
 import asyncio
+import os
+from collections import deque
+
+import graphrag.index.graph.extractors.community_reports.schemas as schemas
 import pandas as pd
 import tiktoken
-from collections import deque
-import graphrag.index.graph.extractors.community_reports.schemas as schemas
-from graphrag.query.indexer_adapters import read_indexer_entities, read_indexer_reports
+from graphrag.query.indexer_adapters import read_indexer_entities
+from graphrag.query.indexer_adapters import read_indexer_reports
+from graphrag.query.llm.base import BaseLLM
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.llm.oai.typing import OpenaiApiType
 from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
-from graphrag.query.llm.base import BaseLLM
-
 
 # parquet files generated from indexing pipeline
-INPUT_DIR = "./inputs/operation dulce"
+# INPUT_DIR = "./inputs/operation dulce"
+INPUT_DIR = "./inputs/podcast"
 COMMUNITY_REPORT_TABLE = "create_final_community_reports"
 ENTITY_TABLE = "create_final_nodes"
 ENTITY_EMBEDDING_TABLE = "create_final_entities"
@@ -130,23 +132,36 @@ Question
 """
 
 
+def check_community_hierarchy(
+    report_df: pd.DataFrame, community_hierarchy: pd.DataFrame
+):
+    dne = []
+    for sub_community in community_hierarchy.sub_community.unique():
+        if sub_community not in report_df.community.unique():
+            dne.append(sub_community)
+    print(f"Cannot find the following sub-communities in report_df: {sorted(dne)}\n")
+
+
 def dynamic_community_selection(
     llm: BaseLLM, token_encoder: tiktoken.Encoding, query: str
 ):
-    community_hierarchy = get_community_hierarchy()
+    community_tree = get_community_hierarchy()
     report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
 
-    print(f"Consider the question: {query}\n")
+    # check_community_hierarchy(report_df, community_tree)
+
+    print(f"QUERY: {query}\n")
 
     queue = deque(report_df.loc[report_df["level"] == 0]["community"])
 
     LLM_calls, prompt_tokens, output_tokens = 0, 0, 0
-    relevant_communities = []
-    # find all community summary at level 0
+    relevant_communities = set()
     while queue:
         community = queue.popleft()
         report = report_df.loc[report_df["community"] == community]
-        assert len(report) == 1, "Each community should only have one report"
+        assert (
+            len(report) == 1
+        ), f"Each community ({community}) should only have one report"
         report = report.iloc[0]
         messages = [
             {
@@ -160,24 +175,39 @@ def dynamic_community_selection(
         prompt_tokens += len(token_encoder.encode(messages[0]["content"])) + len(
             token_encoder.encode(messages[1]["content"])
         )
-        decision = asyncio.run(
-            llm.agenerate(messages=messages, max_tokens=2000, temperature=0.0)
-        )
+        decision = llm.generate(messages=messages, max_tokens=2000, temperature=0.0)
         output_tokens += len(token_encoder.encode(decision))
         LLM_calls += 1
-        print(
-            f"Community {community} (level: {report.level})\n"
-            f"Summary: {report.summary}\nRelevant: {decision}\n\n"
-        )
+
+        statement = f"Community {community} (level: {report.level}) {report.title}\n"
+
+        append_communities = []
         if decision[0] == "1":
             # TODO what should we do if one child is relevant but another is not? Should we keep the parent node or not in this case?
-            if decision[0] == "1":
-                relevant_communities.append(community)
-            sub_communities = community_hierarchy.loc[
-                community_hierarchy["community"] == community
+            sub_communities = community_tree.loc[
+                community_tree["community"] == community
+            ].sub_community
+            for sub_community in sub_communities:
+                if sub_community not in report_df.community.unique():
+                    statement += f"Cannot find community {sub_community} in report.\n"
+                else:
+                    queue.append(sub_community)
+                    append_communities.append(sub_community)
+            relevant_communities.add(community)
+
+            # remove parent node since the current node is deemed relevant
+            parent_community = community_tree.loc[
+                community_tree["sub_community"] == community
             ]
-            for _, community_df in sub_communities.iterrows():
-                queue.append(community_df.sub_community)
+            if len(parent_community):
+                assert len(parent_community) == 1
+                relevant_communities.remove(parent_community.iloc[0].community)
+
+        statement += f"Relevant: {decision}"
+        if append_communities:
+            statement += f" (add communities {append_communities} to queue)"
+        statement += "\n"
+        print(statement)
 
     assert len(relevant_communities), f"Cannot find any relevant community reports"
     relevant_report_df = report_df.loc[
@@ -190,12 +220,14 @@ def dynamic_community_selection(
     reports = read_indexer_reports(relevant_report_df, entity_df, None)
     entities = read_indexer_entities(entity_df, entity_embedding_df, None)
     print(f"Total report count: {len(report_df)}")
-    print(f"Report count after dynamic community selection: {len(reports)}")
+    print(f"Report count after dynamic community selection: {len(reports)}\n\n")
     return reports, entities, LLM_calls, prompt_tokens, output_tokens
 
 
 def main(use_dynamic_selection: bool = True):
-    query = "What is the major conflict in this story and who are the protagonist and antagonist?"
+    # query = "What is the major conflict in this story and who are the protagonist and antagonist?"
+    query = "Are there any common educational or career paths among the guests?"
+
     llm, token_encoder = set_llm()
 
     if use_dynamic_selection:
