@@ -201,7 +201,7 @@ def dynamic_community_selection(
             ]
             if len(parent_community):
                 assert len(parent_community) == 1
-                relevant_communities.remove(parent_community.iloc[0].community)
+                relevant_communities.discard(parent_community.iloc[0].community)
 
         statement += f"Relevant: {decision}"
         if append_communities:
