@@ -14,7 +14,7 @@ from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
-from sklearn.metrics import cohen_kappa_score
+from sklearn.metrics import confusion_matrix
 from time import time
 from typing import List
 import matplotlib
@@ -22,6 +22,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 from collections import Counter
+from tqdm import tqdm
+import pickle
 
 # parquet files generated from indexing pipeline
 # INPUT_DIR = "./inputs/operation dulce"
@@ -56,6 +58,20 @@ def set_llm():
 
     token_encoder = tiktoken.get_encoding("o200k_base")
     return llm, token_encoder
+
+
+def fix_community_selection():
+    entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
+    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
+    entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
+
+    reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
+    entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
+    print(f"Total report count: {len(report_df)}")
+    print(
+        f"Report counts after filtering by community level {COMMUNITY_LEVEL}: {len(reports)}"
+    )
+    return reports, entities, 0, 0, 0
 
 
 def get_community_hierarchy():
@@ -111,27 +127,43 @@ def get_community_hierarchy():
     return pd.DataFrame(community_hierarchy)
 
 
-def fix_community_selection():
-    entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
-    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
-    entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
-
-    reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
-    entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
-    print(f"Total report count: {len(report_df)}")
-    print(
-        f"Report counts after filtering by community level {COMMUNITY_LEVEL}: {len(reports)}"
-    )
-    return reports, entities, 0, 0, 0
+def check_community_hierarchy(
+    report_df: pd.DataFrame, community_hierarchy: pd.DataFrame
+):
+    dne = []
+    for sub_community in community_hierarchy.sub_community.unique():
+        if sub_community not in report_df.community.unique():
+            dne.append(sub_community)
+    print(f"Cannot find the following sub-communities in report_df: {sorted(dne)}\n")
 
 
-def plot_agreement(kappa: List[float], filename: Path = None):
+def cohen_kappa(y1: List[str], y2: List[str], labels: List[str]):
+    confusion = confusion_matrix(y1, y2, labels=labels)
+    n_classes = confusion.shape[0]
+    sum0 = np.sum(confusion, axis=0)
+    sum1 = np.sum(confusion, axis=1)
+    expected = np.outer(sum0, sum1) / np.sum(sum0)
+
+    w_mat = np.ones([n_classes, n_classes], dtype=int)
+    w_mat.flat[:: n_classes + 1] = 0
+
+    k = np.sum(w_mat * confusion) / (np.sum(w_mat * expected) + 1e-8)
+    return 1 - k
+
+
+def compute_agreement(y1: List[str], y2: List[str]) -> float:
+    assert len(y1) == len(y2)
+    count = sum([min(y1.count(option), y2.count(option)) for option in set(y1)])
+    return count / len(y1)
+
+
+def plot_agreement(agreements: List[float], filename: Path = None):
     figure, ax = plt.subplots(nrows=1, ncols=1, figsize=(3, 2), dpi=240)
 
-    df = pd.DataFrame({"kappa": kappa})
-    p = sns.histplot(
+    df = pd.DataFrame({"agreements": agreements})
+    sns.histplot(
         df,
-        x="kappa",
+        x="agreements",
         bins=20,
         binrange=(-1, 1),
         color="black",
@@ -153,7 +185,7 @@ def plot_agreement(kappa: List[float], filename: Path = None):
     x_ticks = np.linspace(-1.0, 1.0, 3)
     ax.set_xlim(x_ticks[0], x_ticks[-1])
     ax.set_xticks(x_ticks, labels=np.round(x_ticks, 1), fontsize=9)
-    ax.set_xlabel("cohen's kappa score", fontsize=10, labelpad=0)
+    ax.set_xlabel("agreement score", fontsize=10, labelpad=0)
     y_ticks = np.linspace(0, 1, 3)
     ax.set_ylim(y_ticks[0], y_ticks[-1])
     ax.set_yticks(y_ticks, labels=(100 * y_ticks).astype(int), fontsize=9)
@@ -170,8 +202,8 @@ def plot_agreement(kappa: List[float], filename: Path = None):
 MESSAGE_1 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return "0" if the information is not relevant at all to the question.
-Return "1" if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
 
 #######
 Information
@@ -180,15 +212,15 @@ Information
 Question
 {question}
 ######
-Return "0" if the information is not relevant at all to the question.
-Return "1" if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
 """
 
 MESSAGE_2 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return "1" if the provided information is useful, helpful or relevant to the question.
-Return "0" if the information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
 
 #######
 Information
@@ -197,19 +229,47 @@ Information
 Question
 {question}
 ######
-Return "1" if the provided information is useful, helpful or relevant to the question.
-Return "0" if the information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
 """
 
+MESSAGE_3 = """
+You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-def check_community_hierarchy(
-    report_df: pd.DataFrame, community_hierarchy: pd.DataFrame
-):
-    dne = []
-    for sub_community in community_hierarchy.sub_community.unique():
-        if sub_community not in report_df.community.unique():
-            dne.append(sub_community)
-    print(f"Cannot find the following sub-communities in report_df: {sorted(dne)}\n")
+Return 0 if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+
+#######
+Information
+{description}
+######
+Question
+{question}
+######
+Return 0 if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+"""
+
+MESSAGE_4 = """
+You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
+
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
+Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+
+#######
+Information
+{description}
+######
+Question
+{question}
+######
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
+Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+"""
 
 
 def is_relevant(
@@ -221,9 +281,9 @@ def is_relevant(
 ):
     info = {"LLM_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
 
-    decisions1, decisions2 = [], []
-    for i in (0, 1):
-        message = MESSAGE_1 if i == 0 else MESSAGE_2
+    decisions = {}
+    for i, message in enumerate(tqdm([MESSAGE_1, MESSAGE_2, MESSAGE_3, MESSAGE_4])):
+        decisions[i] = []
         for repeat in range(num_repeats):
             messages = [
                 {
@@ -240,10 +300,7 @@ def is_relevant(
             )
             # decision = llm.generate(messages=messages, max_tokens=2000, temperature=0.0)
 
-            if i % 2 == 0:
-                decisions1.append(decision)
-            else:
-                decisions2.append(decision)
+            decisions[i].append(decision)
 
             info["LLM_calls"] += 1
             info["prompt_tokens"] += len(
@@ -252,15 +309,15 @@ def is_relevant(
             info["output_tokens"] += len(token_encoder.encode(decision))
 
     # select the decision with the most votes
-    decisions = decisions1 + decisions2
-    options, counts = np.unique(decisions, return_counts=True)
+    options, counts = np.unique(
+        [j for i in list(decisions.values()) for j in i], return_counts=True
+    )
     decision = options[np.argmax(counts)]
 
-    info["kappa"] = 1
-    if not np.array_equal(decisions1, decisions2):
-        info["kappa"] = cohen_kappa_score(decisions1, decisions2)
+    # info["agreement"] = cohen_kappa(y1=decisions[0], y2=decisions[1], labels=["0", "1"])
+    info["agreement"] = compute_agreement(decisions[0], decisions[1])
 
-    return decision, info
+    return decision, info, decisions
 
 
 def dynamic_community_selection(
@@ -280,9 +337,13 @@ def dynamic_community_selection(
 
     queue = deque(report_df.loc[report_df["level"] == 0]["community"])
 
-    LLM_calls, prompt_tokens, output_tokens, kappa_scores = 0, 0, 0, []
-    relevant_communities = set()
+    LLM_calls, prompt_tokens, output_tokens = 0, 0, 0
+    agreements = []
     decisions = []
+    relevant_communities = set()
+
+    all_decisions = {}
+
     while queue:
         community = queue.popleft()
         report = report_df.loc[report_df["community"] == community]
@@ -292,19 +353,21 @@ def dynamic_community_selection(
 
         report = report.iloc[0]
 
-        decision, info = is_relevant(
+        decision, info, all_decision = is_relevant(
             llm=llm,
             token_encoder=token_encoder,
             query=query,
             report=report,
-            num_repeats=1,
+            num_repeats=5,
         )
+
+        all_decisions[community] = all_decision
 
         LLM_calls += info["LLM_calls"]
         prompt_tokens += info["prompt_tokens"]
         output_tokens += info["output_tokens"]
         decisions.append(decision)
-        kappa_scores.append(info["kappa"])
+        agreements.append(info["agreement"])
 
         statement = f"Community {community} (level: {report.level}) {report.title}\n"
 
@@ -332,11 +395,16 @@ def dynamic_community_selection(
                     assert len(parent_community) == 1
                     relevant_communities.discard(parent_community.iloc[0].community)
 
-        statement += f"Relevant: {decision} (kappa: {info['kappa']:.02f})"
+        statement += f"Relevant: {decision} (agreement: {info['agreement']:.02f})"
         if append_communities:
             statement += f" (add communities {append_communities} to queue)"
         statement += "\n"
         print(statement)
+
+    filename = "decisions.pkl"
+    with open(filename, "wb") as file:
+        pickle.dump(all_decisions, file)
+    exit()
 
     assert len(relevant_communities), f"Cannot find any relevant community reports"
     relevant_report_df = report_df.loc[
@@ -346,9 +414,10 @@ def dynamic_community_selection(
     end = time()
 
     print(f"Decision distribution: {Counter(decisions)}")
-    print(f"Average cohen's kappa score: {np.mean(kappa_scores):.02f}.")
+    print(f"Average cohen's kappa score: {np.mean(agreements):.02f}.")
     print(f"Elapse: {end - start:.0f}s\n")
-    plot_agreement(kappa_scores, filename=Path("figures/cohen_kappa_score.jpg"))
+
+    plot_agreement(agreements, filename=Path("figures/agreements.jpg"))
 
     entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
     entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")

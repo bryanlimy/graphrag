@@ -1,3 +1,4 @@
 inputs/podcast
 figures
 test.txt
+*.pkl
