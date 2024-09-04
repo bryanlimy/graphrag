@@ -7,7 +7,7 @@ Ideally this is just a straight read-thorugh into the object model.
 """
 
 from typing import cast
-
+import warnings
 import pandas as pd
 
 from graphrag.model import CommunityReport, Covariate, Entity, Relationship, TextUnit
@@ -104,8 +104,10 @@ def read_indexer_entities(
         columns={"title": "name", "degree": "rank"}
     )
 
-    entity_df["community"] = entity_df["community"].fillna(-1)
-    entity_df["community"] = entity_df["community"].astype(int)
+    with warnings.catch_warnings():
+        warnings.simplefilter(action="ignore", category=FutureWarning)
+        entity_df["community"] = entity_df["community"].fillna(-1)
+        entity_df["community"] = entity_df["community"].astype(int)
     entity_df["rank"] = entity_df["rank"].astype(int)
 
     # for duplicate entities, keep the one with the highest community level

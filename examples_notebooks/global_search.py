@@ -15,7 +15,7 @@ from graphrag.query.structured_search.global_search.community_context import (
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
 from sklearn.metrics import cohen_kappa_score
-
+from time import time
 from typing import List
 import matplotlib
 import matplotlib.pyplot as plt
@@ -120,7 +120,7 @@ def fix_community_selection():
     entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
     print(f"Total report count: {len(report_df)}")
     print(
-        f"Report count after filtering by community level {COMMUNITY_LEVEL}: {len(reports)}"
+        f"Report counts after filtering by community level {COMMUNITY_LEVEL}: {len(reports)}"
     )
     return reports, entities, 0, 0, 0
 
@@ -158,7 +158,7 @@ def plot_agreement(kappa: List[float], filename: Path = None):
     ax.set_ylim(y_ticks[0], y_ticks[-1])
     ax.set_yticks(y_ticks, labels=(100 * y_ticks).astype(int), fontsize=9)
     ax.tick_params(axis="both", which="both", length=2, pad=1, width=0.8)
-    sns.despine(ax, trim=True)
+    sns.despine(ax=ax, trim=True)
     if filename is not None:
         filename.parent.mkdir(parents=True, exist_ok=True)
         figure.savefig(filename, dpi=240, bbox_inches="tight", pad_inches=0.02)
@@ -172,7 +172,6 @@ You are a helpful assistant responsible for deciding whether the provided inform
 
 Return "0" if the information is not relevant at all to the question.
 Return "1" if the provided information is useful, helpful or relevant to the question.
-Return "2" if the provided information is not sufficient to make a decision.
 
 #######
 Information
@@ -183,13 +182,11 @@ Question
 ######
 Return "0" if the information is not relevant at all to the question.
 Return "1" if the provided information is useful, helpful or relevant to the question.
-Return "2" if the provided information is not sufficient to make a decision.
 """
 
 MESSAGE_2 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return "2" if the provided information is not sufficient to make a decision.
 Return "1" if the provided information is useful, helpful or relevant to the question.
 Return "0" if the information is not relevant at all to the question.
 
@@ -200,7 +197,6 @@ Information
 Question
 {question}
 ######
-Return "2" if the provided information is not sufficient to make a decision.
 Return "1" if the provided information is useful, helpful or relevant to the question.
 Return "0" if the information is not relevant at all to the question.
 """
@@ -280,6 +276,8 @@ def dynamic_community_selection(
 
     print(f"QUERY: {query}\n")
 
+    start = time()
+
     queue = deque(report_df.loc[report_df["level"] == 0]["community"])
 
     LLM_calls, prompt_tokens, output_tokens, kappa_scores = 0, 0, 0, []
@@ -299,7 +297,7 @@ def dynamic_community_selection(
             token_encoder=token_encoder,
             query=query,
             report=report,
-            num_repeats=3,
+            num_repeats=1,
         )
 
         LLM_calls += info["LLM_calls"]
@@ -313,15 +311,15 @@ def dynamic_community_selection(
         append_communities = []
         if decision[0] == "1":
             # TODO what should we do if one child is relevant but another is not? Should we keep the parent node or not in this case?
-            sub_communities = community_tree.loc[
-                community_tree["community"] == community
-            ].sub_community
-            for sub_community in sub_communities:
-                if sub_community not in report_df.community.unique():
-                    statement += f"Cannot find community {sub_community} in report.\n"
-                else:
-                    queue.append(sub_community)
-                    append_communities.append(sub_community)
+            # sub_communities = community_tree.loc[
+            #     community_tree["community"] == community
+            # ].sub_community
+            # for sub_community in sub_communities:
+            #     if sub_community not in report_df.community.unique():
+            #         statement += f"Cannot find community {sub_community} in report.\n"
+            #     else:
+            #         queue.append(sub_community)
+            #         append_communities.append(sub_community)
 
             relevant_communities.add(community)
 
@@ -345,8 +343,11 @@ def dynamic_community_selection(
         report_df["community"].isin(relevant_communities)
     ]
 
+    end = time()
+
     print(f"Decision distribution: {Counter(decisions)}")
     print(f"Average cohen's kappa score: {np.mean(kappa_scores):.02f}.")
+    print(f"Elapse: {end - start:.0f}s\n")
     plot_agreement(kappa_scores, filename=Path("figures/cohen_kappa_score.jpg"))
 
     entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
@@ -355,7 +356,7 @@ def dynamic_community_selection(
     reports = read_indexer_reports(relevant_report_df, entity_df, None)
     entities = read_indexer_entities(entity_df, entity_embedding_df, None)
     print(f"Total report count: {len(report_df)}")
-    print(f"Report count after dynamic community selection: {len(reports)}\n")
+    print(f"Report counts after dynamic community selection: {len(reports)}\n")
     return reports, entities, LLM_calls, prompt_tokens, output_tokens
 
 
