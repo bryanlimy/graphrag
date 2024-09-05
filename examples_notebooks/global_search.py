@@ -282,7 +282,7 @@ def is_relevant(
     info = {"LLM_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
 
     decisions = {}
-    for i, message in enumerate(tqdm([MESSAGE_1, MESSAGE_2, MESSAGE_3, MESSAGE_4])):
+    for i, message in enumerate([MESSAGE_1, MESSAGE_2]):
         decisions[i] = []
         for repeat in range(num_repeats):
             messages = [
@@ -325,6 +325,7 @@ def dynamic_community_selection(
     token_encoder: tiktoken.Encoding,
     query: str,
     keep_parent: bool = False,
+    qid: int = 0,
 ):
     community_tree = get_community_hierarchy()
     report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
@@ -358,7 +359,7 @@ def dynamic_community_selection(
             token_encoder=token_encoder,
             query=query,
             report=report,
-            num_repeats=5,
+            num_repeats=1,
         )
 
         all_decisions[community] = all_decision
@@ -374,15 +375,15 @@ def dynamic_community_selection(
         append_communities = []
         if decision[0] == "1":
             # TODO what should we do if one child is relevant but another is not? Should we keep the parent node or not in this case?
-            # sub_communities = community_tree.loc[
-            #     community_tree["community"] == community
-            # ].sub_community
-            # for sub_community in sub_communities:
-            #     if sub_community not in report_df.community.unique():
-            #         statement += f"Cannot find community {sub_community} in report.\n"
-            #     else:
-            #         queue.append(sub_community)
-            #         append_communities.append(sub_community)
+            sub_communities = community_tree.loc[
+                community_tree["community"] == community
+            ].sub_community
+            for sub_community in sub_communities:
+                if sub_community not in report_df.community.unique():
+                    statement += f"Cannot find community {sub_community} in report.\n"
+                else:
+                    queue.append(sub_community)
+                    append_communities.append(sub_community)
 
             relevant_communities.add(community)
 
@@ -401,10 +402,10 @@ def dynamic_community_selection(
         statement += "\n"
         print(statement)
 
-    filename = "decisions.pkl"
-    with open(filename, "wb") as file:
-        pickle.dump(all_decisions, file)
-    exit()
+    # filename = Path(f"decisions/decision_q{qid:03d}.pkl")
+    # filename.parent.mkdir(parents=True, exist_ok=True)
+    # with open(filename, "wb") as file:
+    #     pickle.dump(all_decisions, file)
 
     assert len(relevant_communities), f"Cannot find any relevant community reports"
     relevant_report_df = report_df.loc[
@@ -414,7 +415,7 @@ def dynamic_community_selection(
     end = time()
 
     print(f"Decision distribution: {Counter(decisions)}")
-    print(f"Average cohen's kappa score: {np.mean(agreements):.02f}.")
+    print(f"Average agreement score: {np.mean(agreements):.02f}.")
     print(f"Elapse: {end - start:.0f}s\n")
 
     plot_agreement(agreements, filename=Path("figures/agreements.jpg"))
@@ -510,5 +511,37 @@ def main(use_dynamic_selection: bool = True):
     )
 
 
+def test_multi_query():
+    queries = {
+        9: "Are there any common educational or career paths among the guests?",
+        18: "How do guests generally perceive the impact of privacy laws on technology development?",
+        19: "Do any tech leaders discuss the balance between innovation and ethical considerations?",
+        26: "How do the predictions concerning technology trends differ between industry veterans and newcomers?",
+        27: "How do tech leaders describe the influence of technology on everyday life?",
+        34: "Are there conversations about digital divide and access to technology?",
+        36: "Do the leaders speak about initiatives their companies have taken for societal benefits?",
+        39: "Do any episodes focus on specific technological breakthroughs that have enhanced public services?",
+        41: "Which guests share their experiences with tech initiatives in the education sector?",
+        46: "Which episodes address the challenges faced in balancing user privacy with technological convenience?",
+        49: "Which guests talk about the significance of company culture in driving technological advancements?",
+        62: "How often do guests mention collaboration with other companies or industry rivals?",
+        64: "What are some examples of industry-wide partnerships discussed in the podcast?",
+        71: "Are there anecdotes about successful or unsuccessful pitches for tech-related funding?",
+        75: "How do tech leaders describe the role of mentorship in their career journeys?",
+        79: "What patterns in word choice are noticeable when leaders discuss industry challenges?",
+        85: "How does the host's questioning style change when talking to leaders from different tech sectors?",
+        97: "Retrieving data. Wait a few seconds and try to cut or copy again.",
+        101: "What narrative structures do guests rely on when recounting the journey of their companies or own careers?",
+        125: "What new markets or sectors do guests believe will be created by future technologies?",
+    }
+
+    for qid, query in queries.items():
+        llm, token_encoder = set_llm()
+        _ = dynamic_community_selection(
+            llm=llm, token_encoder=token_encoder, query=query, qid=qid
+        )
+
+
 if __name__ == "__main__":
     main()
+    # test_multi_query()
