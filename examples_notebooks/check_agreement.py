@@ -114,8 +114,8 @@ def main():
     )
     print(
         f"Unsure rate\n"
-        f'\tY-N and Y-N-U: {np.mean(unsure_rate["Y-N-U"])*100:.2f}% +\- {np.std(unsure_rate["Y-N-U"])*100:.2f}%\n'
-        f'\tN-Y and N-Y-U: {np.mean(unsure_rate["N-Y-U"])*100:.02f}% +\- {np.std(unsure_rate["N-Y-U"])*100:.2f}%'
+        f'\tY-N and Y-N-U: {np.mean(unsure_rate["Y-N-U"])*100:.2f}% +/- {np.std(unsure_rate["Y-N-U"])*100:.2f}%\n'
+        f'\tN-Y and N-Y-U: {np.mean(unsure_rate["N-Y-U"])*100:.02f}% +/- {np.std(unsure_rate["N-Y-U"])*100:.2f}%'
     )
     plot_agreement(
         perfect_agreements,
