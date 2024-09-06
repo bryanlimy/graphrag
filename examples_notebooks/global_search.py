@@ -2,7 +2,7 @@ import asyncio
 import os
 from collections import deque
 import numpy as np
-import graphrag.index.graph.extractors.community_reports.schemas as schemas
+
 import pandas as pd
 import tiktoken
 from graphrag.query.indexer_adapters import read_indexer_entities
@@ -14,16 +14,17 @@ from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
-from sklearn.metrics import confusion_matrix
+
 from time import time
-from typing import List
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
+from typing import List, Any, Dict
+
+
 from pathlib import Path
 from collections import Counter
 from tqdm import tqdm
 import pickle
+
+import utils
 
 # parquet files generated from indexing pipeline
 # INPUT_DIR = "./inputs/operation dulce"
@@ -60,71 +61,13 @@ def set_llm():
     return llm, token_encoder
 
 
-def fix_community_selection():
+def fix_community_selection(report_df: pd.DataFrame):
     entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
-    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
     entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
 
     reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
     entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
-    print(f"Total report count: {len(report_df)}")
-    print(
-        f"Report counts after filtering by community level {COMMUNITY_LEVEL}: {len(reports)}"
-    )
     return reports, entities, 0, 0, 0
-
-
-def get_community_hierarchy():
-    node_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
-
-    community_df = (
-        node_df.groupby([schemas.NODE_COMMUNITY, schemas.NODE_LEVEL])
-        .agg({schemas.NODE_NAME: list})
-        .reset_index()
-    )
-    community_levels = {}
-    for _, row in community_df.iterrows():
-        level = row[schemas.NODE_LEVEL]
-        name = row[schemas.NODE_NAME]
-        community = row[schemas.NODE_COMMUNITY]
-
-        if community_levels.get(level) is None:
-            community_levels[level] = {}
-        community_levels[level][community] = name
-
-    # get unique levels, sorted in ascending order
-    levels = sorted(community_levels.keys())
-
-    community_hierarchy = []
-
-    for idx in range(len(levels) - 1):
-        level = levels[idx]
-        next_level = levels[idx + 1]
-        current_level_communities = community_levels[level]
-        next_level_communities = community_levels[next_level]
-
-        for current_community in current_level_communities:
-            current_entities = current_level_communities[current_community]
-
-            # loop through next level's communities to find all the subcommunities
-            entities_found = 0
-            for next_level_community in next_level_communities:
-                next_entities = next_level_communities[next_level_community]
-                if set(next_entities).issubset(set(current_entities)):
-                    community_hierarchy.append(
-                        {
-                            schemas.NODE_COMMUNITY: current_community,
-                            schemas.COMMUNITY_LEVEL: level,
-                            schemas.SUB_COMMUNITY: next_level_community,
-                            schemas.SUB_COMMUNITY_SIZE: len(next_entities),
-                        }
-                    )
-
-                    entities_found += len(next_entities)
-                    if entities_found == len(current_entities):
-                        break
-
-    return pd.DataFrame(community_hierarchy)
 
 
 def check_community_hierarchy(
@@ -137,73 +80,11 @@ def check_community_hierarchy(
     print(f"Cannot find the following sub-communities in report_df: {sorted(dne)}\n")
 
 
-def cohen_kappa(y1: List[str], y2: List[str], labels: List[str]):
-    confusion = confusion_matrix(y1, y2, labels=labels)
-    n_classes = confusion.shape[0]
-    sum0 = np.sum(confusion, axis=0)
-    sum1 = np.sum(confusion, axis=1)
-    expected = np.outer(sum0, sum1) / np.sum(sum0)
-
-    w_mat = np.ones([n_classes, n_classes], dtype=int)
-    w_mat.flat[:: n_classes + 1] = 0
-
-    k = np.sum(w_mat * confusion) / (np.sum(w_mat * expected) + 1e-8)
-    return 1 - k
-
-
-def compute_agreement(y1: List[str], y2: List[str]) -> float:
-    assert len(y1) == len(y2)
-    count = sum([min(y1.count(option), y2.count(option)) for option in set(y1)])
-    return count / len(y1)
-
-
-def plot_agreement(agreements: List[float], filename: Path = None):
-    figure, ax = plt.subplots(nrows=1, ncols=1, figsize=(3, 2), dpi=240)
-
-    df = pd.DataFrame({"agreements": agreements})
-    sns.histplot(
-        df,
-        x="agreements",
-        bins=20,
-        binrange=(-1, 1),
-        color="black",
-        stat="probability",
-        fill=False,
-        linewidth=1,
-        clip_on=False,
-        alpha=0.8,
-        ax=ax,
-    )
-    ax.axvline(
-        x=0,
-        color="black",
-        alpha=0.3,
-        linestyle="dotted",
-        linewidth=1,
-        zorder=-1,
-    )
-    x_ticks = np.linspace(-1.0, 1.0, 3)
-    ax.set_xlim(x_ticks[0], x_ticks[-1])
-    ax.set_xticks(x_ticks, labels=np.round(x_ticks, 1), fontsize=9)
-    ax.set_xlabel("agreement score", fontsize=10, labelpad=0)
-    y_ticks = np.linspace(0, 1, 3)
-    ax.set_ylim(y_ticks[0], y_ticks[-1])
-    ax.set_yticks(y_ticks, labels=(100 * y_ticks).astype(int), fontsize=9)
-    ax.tick_params(axis="both", which="both", length=2, pad=1, width=0.8)
-    sns.despine(ax=ax, trim=True)
-    if filename is not None:
-        filename.parent.mkdir(parents=True, exist_ok=True)
-        figure.savefig(filename, dpi=240, bbox_inches="tight", pad_inches=0.02)
-    else:
-        plt.show()
-    plt.close(figure)
-
-
 MESSAGE_1 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return 0 if the provided information is not relevant at all to the question.
-Return 1 if the provided information is useful, helpful or relevant to the question.
+Return NO if the provided information is not relevant at all to the question.
+Return YES if the provided information is useful, helpful or relevant to the question.
 
 #######
 Information
@@ -212,15 +93,15 @@ Information
 Question
 {question}
 ######
-Return 0 if the provided information is not relevant at all to the question.
-Return 1 if the provided information is useful, helpful or relevant to the question.
+Return NO if the provided information is not relevant at all to the question.
+Return YES if the provided information is useful, helpful or relevant to the question.
 """
 
 MESSAGE_2 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return 1 if the provided information is useful, helpful or relevant to the question.
-Return 0 if the provided information is not relevant at all to the question.
+Return YES if the provided information is useful, helpful or relevant to the question.
+Return NO if the provided information is not relevant at all to the question.
 
 #######
 Information
@@ -229,16 +110,16 @@ Information
 Question
 {question}
 ######
-Return 1 if the provided information is useful, helpful or relevant to the question.
-Return 0 if the provided information is not relevant at all to the question.
+Return YES if the provided information is useful, helpful or relevant to the question.
+Return NO if the provided information is not relevant at all to the question.
 """
 
 MESSAGE_3 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return 0 if the provided information is not relevant at all to the question.
-Return 1 if the provided information is useful, helpful or relevant to the question.
-Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+Return NO if the provided information is not relevant at all to the question.
+Return YES if the provided information is useful, helpful or relevant to the question.
+Return UNSURE if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
 
 #######
 Information
@@ -247,17 +128,17 @@ Information
 Question
 {question}
 ######
-Return 0 if the provided information is not relevant at all to the question.
-Return 1 if the provided information is useful, helpful or relevant to the question.
-Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+Return NO if the provided information is not relevant at all to the question.
+Return YES if the provided information is useful, helpful or relevant to the question.
+Return UNSURE if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
 """
 
 MESSAGE_4 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return 1 if the provided information is useful, helpful or relevant to the question.
-Return 0 if the provided information is not relevant at all to the question.
-Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+Return YES if the provided information is useful, helpful or relevant to the question.
+Return NO if the provided information is not relevant at all to the question.
+Return UNSURE if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
 
 #######
 Information
@@ -266,9 +147,33 @@ Information
 Question
 {question}
 ######
-Return 1 if the provided information is useful, helpful or relevant to the question.
-Return 0 if the provided information is not relevant at all to the question.
-Return 2 if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+Return YES if the provided information is useful, helpful or relevant to the question.
+Return NO if the provided information is not relevant at all to the question.
+Return UNSURE if you are unsure whether or not the provided information is relevant or helpful in answering the question. 
+"""
+
+MESSAGE_5 = """
+You are a helpful assistant responsible for deciding whether the provided information 
+is useful in answering a given question, even if it is only partially relevant.
+
+On a scale from 1 to 5, please rate how relevant or helpful is the provided information in answering the question:
+1 - Not relevant in any way to the question
+2 - Potentially relevant to the question
+3 - Relevant to the question
+4 - Highly relevant to the question
+5 - It directly answers to the question
+
+
+#######
+Information
+{description}
+######
+Question
+{question}
+######
+Please rate the provided information on a scale of 1 to 5, and return the result in the format of:
+<rating>
+<a short description as to why you gave such an rating>
 """
 
 
@@ -278,12 +183,17 @@ def is_relevant(
     query: str,
     report: pd.DataFrame,
     num_repeats: int = 1,
-):
-    info = {"LLM_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
+) -> (str, Dict[str, Any]):
+    result = {
+        "llm_calls": 0,
+        "prompt_tokens": 0,
+        "output_tokens": 0,
+        "decisions": {},  # store the decision of the LLM, usually a single value.
+        "outputs": {},  # store the raw output of the LLM
+    }
 
-    decisions = {}
-    for i, message in enumerate([MESSAGE_1, MESSAGE_2]):
-        decisions[i] = []
+    for i, message in enumerate([MESSAGE_5]):
+        result["decisions"][i], result["outputs"][i] = [], []
         for repeat in range(num_repeats):
             messages = [
                 {
@@ -295,41 +205,49 @@ def is_relevant(
                 {"role": "user", "content": query},
             ]
 
-            decision = asyncio.run(
-                llm.agenerate(messages=messages, max_tokens=2000, temperature=0.0)
-            )
-            # decision = llm.generate(messages=messages, max_tokens=2000, temperature=0.0)
+            if utils.debug_mode():
+                decision = llm.generate(
+                    messages=messages, max_tokens=2000, temperature=0.0
+                )
+            else:
+                decision = asyncio.run(
+                    llm.agenerate(messages=messages, max_tokens=2000, temperature=0.0)
+                )
 
-            decisions[i].append(decision)
+            result["decisions"][i].append(decision[0])
+            result["outputs"][i].append(decision)
 
-            info["LLM_calls"] += 1
-            info["prompt_tokens"] += len(
+            result["llm_calls"] += 1
+            result["prompt_tokens"] += len(
                 token_encoder.encode(messages[0]["content"])
             ) + len(token_encoder.encode(messages[1]["content"]))
-            info["output_tokens"] += len(token_encoder.encode(decision))
+            result["output_tokens"] += len(token_encoder.encode(decision))
 
     # select the decision with the most votes
     options, counts = np.unique(
-        [j for i in list(decisions.values()) for j in i], return_counts=True
+        [j for i in list(result["decisions"].values()) for j in i],
+        return_counts=True,
     )
-    decision = options[np.argmax(counts)]
+    decision = result["decision"] = options[np.argmax(counts)]
 
-    # info["agreement"] = cohen_kappa(y1=decisions[0], y2=decisions[1], labels=["0", "1"])
-    info["agreement"] = compute_agreement(decisions[0], decisions[1])
+    if len(result["decisions"]) > 1:
+        # info["agreement"] = utils.cohen_kappa(y1=decisions[0], y2=decisions[1], labels=["0", "1"])
+        result["agreement"] = utils.compute_agreement(
+            y1=result["decisions"][0], y2=result["decisions"][1]
+        )
 
-    return decision, info, decisions
+    return decision, result
 
 
 def dynamic_community_selection(
+    report_df: pd.DataFrame,
     llm: BaseLLM,
     token_encoder: tiktoken.Encoding,
     query: str,
+    qid: int,
     keep_parent: bool = False,
-    qid: int = 0,
 ):
-    community_tree = get_community_hierarchy()
-    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
-
+    community_tree = utils.get_community_hierarchy(INPUT_DIR)
     # check_community_hierarchy(report_df, community_tree)
 
     print(f"QUERY: {query}\n")
@@ -338,12 +256,15 @@ def dynamic_community_selection(
 
     queue = deque(report_df.loc[report_df["level"] == 0]["community"])
 
-    LLM_calls, prompt_tokens, output_tokens = 0, 0, 0
-    agreements = []
-    decisions = []
+    results = {
+        "llm_calls": 0,
+        "prompt_tokens": 0,
+        "output_tokens": 0,
+        "decisions": [],
+        "outputs": {},
+        "agreements": [],
+    }
     relevant_communities = set()
-
-    all_decisions = {}
 
     while queue:
         community = queue.popleft()
@@ -354,7 +275,7 @@ def dynamic_community_selection(
 
         report = report.iloc[0]
 
-        decision, info, all_decision = is_relevant(
+        decision, result = is_relevant(
             llm=llm,
             token_encoder=token_encoder,
             query=query,
@@ -362,19 +283,18 @@ def dynamic_community_selection(
             num_repeats=1,
         )
 
-        all_decisions[community] = all_decision
-
-        LLM_calls += info["LLM_calls"]
-        prompt_tokens += info["prompt_tokens"]
-        output_tokens += info["output_tokens"]
-        decisions.append(decision)
-        agreements.append(info["agreement"])
+        results["llm_calls"] += result["llm_calls"]
+        results["prompt_tokens"] += result["prompt_tokens"]
+        results["output_tokens"] += result["output_tokens"]
+        results["decisions"].append(decision)
+        results["outputs"][community] = result["outputs"]
+        if "agreement" in result:
+            results["agreements"].append(result["agreement"])
 
         statement = f"Community {community} (level: {report.level}) {report.title}\n"
 
         append_communities = []
-        if decision[0] == "1":
-            # TODO what should we do if one child is relevant but another is not? Should we keep the parent node or not in this case?
+        if int(decision[0]) > 1:
             sub_communities = community_tree.loc[
                 community_tree["community"] == community
             ].sub_community
@@ -396,13 +316,15 @@ def dynamic_community_selection(
                     assert len(parent_community) == 1
                     relevant_communities.discard(parent_community.iloc[0].community)
 
-        statement += f"Relevant: {decision} (agreement: {info['agreement']:.02f})"
+        statement += f"Relevant: {decision}"
+        if len(results["agreements"]):
+            statement += f' (agreement: {np.mean(results["agreements"]):.0f}%)'
         if append_communities:
             statement += f" (add communities {append_communities} to queue)"
         statement += "\n"
         print(statement)
 
-    # filename = Path(f"decisions/decision_q{qid:03d}.pkl")
+    # filename = Path(f"decisions/words/decision_q{qid:03d}.pkl")
     # filename.parent.mkdir(parents=True, exist_ok=True)
     # with open(filename, "wb") as file:
     #     pickle.dump(all_decisions, file)
@@ -414,38 +336,53 @@ def dynamic_community_selection(
 
     end = time()
 
-    print(f"Decision distribution: {Counter(decisions)}")
-    print(f"Average agreement score: {np.mean(agreements):.02f}.")
+    print(f"Decision distribution: {Counter(results['decisions'])}")
+    if len(results["agreements"]):
+        print(f"Average agreement score: {np.mean(results['agreements']):.02f}.")
+        utils.plot_agreement(
+            results["agreements"], filename=Path("figures/agreements.jpg")
+        )
     print(f"Elapse: {end - start:.0f}s\n")
-
-    plot_agreement(agreements, filename=Path("figures/agreements.jpg"))
 
     entity_df = pd.read_parquet(f"{INPUT_DIR}/create_final_nodes.parquet")
     entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/create_final_entities.parquet")
 
     reports = read_indexer_reports(relevant_report_df, entity_df, None)
     entities = read_indexer_entities(entity_df, entity_embedding_df, None)
-    print(f"Total report count: {len(report_df)}")
-    print(f"Report counts after dynamic community selection: {len(reports)}\n")
-    return reports, entities, LLM_calls, prompt_tokens, output_tokens
+    return (
+        reports,
+        entities,
+        results["llm_calls"],
+        results["prompt_tokens"],
+        results["output_tokens"],
+    )
 
 
 def main(use_dynamic_selection: bool = True):
-    # query = "What is the major conflict in this story and who are the protagonist and antagonist?"
-    query = "Are there any common educational or career paths among the guests?"
+    qid = 9
+    query = utils.QUERIES[qid]
 
     llm, token_encoder = set_llm()
 
+    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
+
     if use_dynamic_selection:
-        reports, entities, LLM_calls, prompt_tokens, output_tokens = (
+        reports, entities, llm_calls, prompt_tokens, output_tokens = (
             dynamic_community_selection(
-                llm=llm, token_encoder=token_encoder, query=query
+                report_df=report_df,
+                llm=llm,
+                token_encoder=token_encoder,
+                query=query,
+                qid=qid,
             )
         )
     else:
-        reports, entities, LLM_calls, prompt_tokens, output_tokens = (
-            fix_community_selection()
+        reports, entities, llm_calls, prompt_tokens, output_tokens = (
+            fix_community_selection(report_df=report_df)
         )
+
+    print(f"Total report count: {len(report_df)}")
+    print(f"Report counts after dynamic community selection: {len(reports)}\n")
 
     context_builder = GlobalCommunityContext(
         community_reports=reports,
@@ -505,40 +442,22 @@ def main(use_dynamic_selection: bool = True):
 
     # inspect number of LLM calls and tokens
     print(
-        f"\n\nLLM calls: {result.llm_calls + LLM_calls}. "
+        f"\n\nLLM calls: {result.llm_calls + llm_calls}. "
         f"total prompt tokens: {result.prompt_tokens + prompt_tokens}. "
         f"total output tokens: {result.output_tokens + output_tokens}"
     )
 
 
 def test_multi_query():
-    queries = {
-        9: "Are there any common educational or career paths among the guests?",
-        18: "How do guests generally perceive the impact of privacy laws on technology development?",
-        19: "Do any tech leaders discuss the balance between innovation and ethical considerations?",
-        26: "How do the predictions concerning technology trends differ between industry veterans and newcomers?",
-        27: "How do tech leaders describe the influence of technology on everyday life?",
-        34: "Are there conversations about digital divide and access to technology?",
-        36: "Do the leaders speak about initiatives their companies have taken for societal benefits?",
-        39: "Do any episodes focus on specific technological breakthroughs that have enhanced public services?",
-        41: "Which guests share their experiences with tech initiatives in the education sector?",
-        46: "Which episodes address the challenges faced in balancing user privacy with technological convenience?",
-        49: "Which guests talk about the significance of company culture in driving technological advancements?",
-        62: "How often do guests mention collaboration with other companies or industry rivals?",
-        64: "What are some examples of industry-wide partnerships discussed in the podcast?",
-        71: "Are there anecdotes about successful or unsuccessful pitches for tech-related funding?",
-        75: "How do tech leaders describe the role of mentorship in their career journeys?",
-        79: "What patterns in word choice are noticeable when leaders discuss industry challenges?",
-        85: "How does the host's questioning style change when talking to leaders from different tech sectors?",
-        97: "Retrieving data. Wait a few seconds and try to cut or copy again.",
-        101: "What narrative structures do guests rely on when recounting the journey of their companies or own careers?",
-        125: "What new markets or sectors do guests believe will be created by future technologies?",
-    }
-
-    for qid, query in queries.items():
+    report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
+    for qid, query in utils.QUERIES.items():
         llm, token_encoder = set_llm()
         _ = dynamic_community_selection(
-            llm=llm, token_encoder=token_encoder, query=query, qid=qid
+            report_df=report_df.copy(deep=True),
+            llm=llm,
+            token_encoder=token_encoder,
+            query=query,
+            qid=qid,
         )
 
 

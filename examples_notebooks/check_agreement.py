@@ -73,7 +73,7 @@ def compute_agreement(y1: List[str], y2: List[str]) -> float:
 
 
 def main():
-    output_dir = Path("decisions")
+    output_dir = Path("decisions/words")
     perfect_agreements = []
 
     unsure_rate = {"Y-N-U": [], "N-Y-U": []}
