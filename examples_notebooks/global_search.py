@@ -430,14 +430,17 @@ def main(qid: int, use_dynamic_selection: bool = True):
         f"Total output tokens: {output_tokens}"
     )
 
-    result_dir = Path(f"results/query{qid:03d}")
+    result_dir = Path(
+        f"results/{'dynamic' if use_dynamic_selection else 'fixed'}/query{qid:03d}"
+    )
     result_dir.mkdir(parents=True, exist_ok=True)
     with open(result_dir / "response.md", "w") as file:
         response = f"### Query: {query}\n\n"
-        response += (
-            f"Decision distribution: {Counter(selection_result['decisions'])}\n\n"
-        )
-        response += f"Total report count: {len(report_df)}\n\n"
+        if "decisions" in selection_result:
+            response += (
+                f"Decision distribution: {Counter(selection_result['decisions'])}\n\n"
+            )
+        response += f"Total report count: {len(report_df)}<br>\n"
         response += (
             f"Report counts after dynamic community selection: {len(reports)}\n\n"
         )
@@ -470,6 +473,6 @@ def test_multi_query():
 
 
 if __name__ == "__main__":
-    for qid in [9, 18, 19]:
-        main(qid=qid)
+    for qid in [9]:
+        main(qid=qid, use_dynamic_selection=True)
     # test_multi_query()
