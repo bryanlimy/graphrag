@@ -26,6 +26,7 @@ import pickle
 
 import utils
 
+
 # parquet files generated from indexing pipeline
 # INPUT_DIR = "./inputs/operation dulce"
 INPUT_DIR = "./inputs/podcast"
@@ -67,7 +68,7 @@ def fix_community_selection(report_df: pd.DataFrame):
 
     reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
     entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
-    return reports, entities, 0, 0, 0
+    return reports, entities, {"llm_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
 
 
 def check_community_hierarchy(
@@ -171,9 +172,7 @@ Information
 Question
 {question}
 ######
-Please rate the provided information on a scale of 1 to 5, and return the result in the format of:
-<rating>
-<a short description as to why you gave such an rating>
+Please return the rating as a single value.
 """
 
 
@@ -244,7 +243,6 @@ def dynamic_community_selection(
     llm: BaseLLM,
     token_encoder: tiktoken.Encoding,
     query: str,
-    qid: int,
     keep_parent: bool = False,
 ):
     community_tree = utils.get_community_hierarchy(INPUT_DIR)
@@ -324,11 +322,6 @@ def dynamic_community_selection(
         statement += "\n"
         print(statement)
 
-    # filename = Path(f"decisions/words/decision_q{qid:03d}.pkl")
-    # filename.parent.mkdir(parents=True, exist_ok=True)
-    # with open(filename, "wb") as file:
-    #     pickle.dump(all_decisions, file)
-
     assert len(relevant_communities), f"Cannot find any relevant community reports"
     relevant_report_df = report_df.loc[
         report_df["community"].isin(relevant_communities)
@@ -349,17 +342,10 @@ def dynamic_community_selection(
 
     reports = read_indexer_reports(relevant_report_df, entity_df, None)
     entities = read_indexer_entities(entity_df, entity_embedding_df, None)
-    return (
-        reports,
-        entities,
-        results["llm_calls"],
-        results["prompt_tokens"],
-        results["output_tokens"],
-    )
+    return reports, entities, results
 
 
-def main(use_dynamic_selection: bool = True):
-    qid = 9
+def main(qid: int, use_dynamic_selection: bool = True):
     query = utils.QUERIES[qid]
 
     llm, token_encoder = set_llm()
@@ -367,18 +353,12 @@ def main(use_dynamic_selection: bool = True):
     report_df = pd.read_parquet(f"{INPUT_DIR}/create_final_community_reports.parquet")
 
     if use_dynamic_selection:
-        reports, entities, llm_calls, prompt_tokens, output_tokens = (
-            dynamic_community_selection(
-                report_df=report_df,
-                llm=llm,
-                token_encoder=token_encoder,
-                query=query,
-                qid=qid,
-            )
+        reports, entities, selection_result = dynamic_community_selection(
+            report_df=report_df, llm=llm, token_encoder=token_encoder, query=query
         )
     else:
-        reports, entities, llm_calls, prompt_tokens, output_tokens = (
-            fix_community_selection(report_df=report_df)
+        reports, entities, selection_result = fix_community_selection(
+            report_df=report_df
         )
 
     print(f"Total report count: {len(report_df)}")
@@ -441,11 +421,40 @@ def main(use_dynamic_selection: bool = True):
     print(result.response)
 
     # inspect number of LLM calls and tokens
+    llm_calls = result.llm_calls + selection_result["llm_calls"]
+    prompt_tokens = result.prompt_tokens + selection_result["prompt_tokens"]
+    output_tokens = result.output_tokens + selection_result["output_tokens"]
     print(
-        f"\n\nLLM calls: {result.llm_calls + llm_calls}. "
-        f"total prompt tokens: {result.prompt_tokens + prompt_tokens}. "
-        f"total output tokens: {result.output_tokens + output_tokens}"
+        f"\n\nLLM calls: {llm_calls}. "
+        f"Total prompt tokens: {prompt_tokens}. "
+        f"Total output tokens: {output_tokens}"
     )
+
+    result_dir = Path(f"results/query{qid:03d}")
+    result_dir.mkdir(parents=True, exist_ok=True)
+    with open(result_dir / "response.md", "w") as file:
+        response = f"### Query: {query}\n\n"
+        response += (
+            f"Decision distribution: {Counter(selection_result['decisions'])}\n\n"
+        )
+        response += f"Total report count: {len(report_df)}\n\n"
+        response += (
+            f"Report counts after dynamic community selection: {len(reports)}\n\n"
+        )
+        response += result.response
+        response += f"\n\nLLM calls: {llm_calls}. Total prompt tokens: {prompt_tokens}. Total output tokens: {output_tokens}"
+        file.write(response)
+    with open(result_dir / "result.pkl", "wb") as file:
+        pickle.dump(
+            {
+                "response": result.response,
+                "llm_calls": llm_calls,
+                "prompt_tokens": prompt_tokens,
+                "output_tokens": output_tokens,
+                "selection_result": selection_result,
+            },
+            file,
+        )
 
 
 def test_multi_query():
@@ -457,10 +466,10 @@ def test_multi_query():
             llm=llm,
             token_encoder=token_encoder,
             query=query,
-            qid=qid,
         )
 
 
 if __name__ == "__main__":
-    main()
+    for qid in [9, 18, 19]:
+        main(qid=qid)
     # test_multi_query()
