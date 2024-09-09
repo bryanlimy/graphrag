@@ -123,7 +123,7 @@ def plot_community_decision(
     x_ticks = np.arange(len(options), dtype=int)
     y_ticks = np.linspace(
         0.1 * floor(10 * np.min(similarities)),
-        0.1 * ceil(10 * np.max(similarities)),
+        0.1 * ceil(10 * np.max(similarities)) if not add_p_value else 1.0,
         num=3,
     )
 
@@ -134,9 +134,16 @@ def plot_community_decision(
         positions=x_ticks,
         widths=widths if scale_width else 0.4,
         showfliers=False,
+        showmeans=True,
         flierprops={"marker": "o", "markersize": 2, "alpha": 0.5},
         capprops={"clip_on": False},
         whiskerprops={"clip_on": False},
+        meanprops={
+            # "marker": "o",
+            "markersize": 3,
+            "markerfacecolor": "gold",
+            "markeredgecolor": "none",
+        },
         medianprops={
             "color": "red",
             # "zorder": 1,
@@ -160,26 +167,57 @@ def plot_community_decision(
         ax.scatter(x, y, **scatter_kw)
 
     if add_p_value:
-        max_height = max(np.max(data[0]), np.max(data[1])) + 0.01
+        max_height = max(np.max(data[0]), np.max(data[1])) + 0.05
+        y_offset = 0.008
+        plot.add_p_value(
+            ax,
+            x0=x_ticks[1],
+            x1=x_ticks[2],
+            y=max_height,
+            y_offset=y_offset,
+            array1=data[1],
+            array2=data[2],
+            fontsize=TICK_FONTSIZE,
+        )
+        plot.add_p_value(
+            ax,
+            x0=x_ticks[2],
+            x1=x_ticks[3],
+            y=max_height,
+            y_offset=y_offset,
+            array1=data[2],
+            array2=data[3],
+            fontsize=TICK_FONTSIZE,
+        )
+        plot.add_p_value(
+            ax,
+            x0=x_ticks[3],
+            x1=x_ticks[4],
+            y=max_height,
+            y_offset=y_offset,
+            array1=data[3],
+            array2=data[4],
+            fontsize=TICK_FONTSIZE,
+        )
         for i in [1, 2, 3, 4]:
             text_height = plot.add_p_value(
                 ax,
                 x0=x_ticks[0],
                 x1=x_ticks[i],
                 y=max_height,
-                y_offset=0.002,
+                y_offset=y_offset,
                 array1=data[0],
                 array2=data[i],
                 fontsize=TICK_FONTSIZE,
             )
-            max_height = max(max_height, text_height) + 0.015
+            max_height = max(max_height, text_height) + 0.02
 
     ax.set_xlim(x_ticks[0] - 0.6, x_ticks[-1] + 0.6)
     plot.set_xticks(
         ax,
         ticks=x_ticks,
         tick_labels=options,
-        label="Decision",
+        label="LLM rating (GPT-4o)",
         tick_fontsize=TICK_FONTSIZE,
         label_fontsize=LABEL_FONTSIZE,
         label_pad=0,

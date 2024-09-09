@@ -24,6 +24,9 @@ class TextEmbedder:
         self.text_embedder = text_embedder
         self.semaphore = asyncio.Semaphore(concurrent_coroutines)
 
+    def embed_raw_text(self, text: str) -> list[float]:
+        return self.text_embedder.embed(text)
+
     async def aembed_raw_text(self, text: str) -> list[float]:
         async with self.semaphore:
             return await self.text_embedder.aembed(text)
@@ -87,7 +90,7 @@ def get_text_embedder() -> TextEmbedder:
 
 def embed_text(text: str) -> np.ndarray:
     text_embedder = get_text_embedder()
-    embedding = asyncio.run(text_embedder.aembed_raw_text(text))
+    embedding = text_embedder.embed_raw_text(text)
     return np.array(embedding, dtype=np.float32)
 
 

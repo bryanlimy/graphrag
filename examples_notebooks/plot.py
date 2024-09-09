@@ -150,7 +150,9 @@ def add_p_value(
     fontsize: float = TICK_FONTSIZE,
 ) -> float:
     p_value = ttest_ind(array1, array2).pvalue
-    if p_value <= 0.001:
+    if p_value <= 0.0001:
+        text = "****"
+    elif p_value <= 0.001:
         text = "***"
     elif p_value <= 0.01:
         text = "**"
@@ -170,14 +172,14 @@ def add_p_value(
         linewidth=1,
         clip_on=False,
     )
-    text_height = y + 1 * y_offset if ns else y + 1.2 * y_offset
+    text_height = y + 1.2 * y_offset
     ax.text(
         x=((x1 - x0) / 2) + x0,
         y=text_height,
         s=text,
         ha="center",
-        va="center",
-        fontsize=fontsize - 1.5 if ns else fontsize,
+        va="bottom" if ns else "center",
+        fontsize=fontsize - 1.6 if ns else fontsize,
     )
     return text_height
 
