@@ -1,8 +1,15 @@
 import asyncio
 import os
+import pickle
+from collections import Counter
 from collections import deque
-import numpy as np
+from pathlib import Path
+from time import time
+from typing import Any
+from typing import Dict
+from typing import List
 
+import numpy as np
 import pandas as pd
 import tiktoken
 from graphrag.query.indexer_adapters import read_indexer_entities
@@ -14,18 +21,9 @@ from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
 )
 from graphrag.query.structured_search.global_search.search import GlobalSearch
-
-from time import time
-from typing import List, Any, Dict
-
-
-from pathlib import Path
-from collections import Counter
 from tqdm import tqdm
-import pickle
 
 import utils
-
 
 # parquet files generated from indexing pipeline
 # INPUT_DIR = "./inputs/operation dulce"
@@ -84,8 +82,8 @@ def check_community_hierarchy(
 MESSAGE_1 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return NO if the provided information is not relevant at all to the question.
-Return YES if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
 
 #######
 Information
@@ -94,15 +92,15 @@ Information
 Question
 {question}
 ######
-Return NO if the provided information is not relevant at all to the question.
-Return YES if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
 """
 
 MESSAGE_2 = """
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
 
-Return YES if the provided information is useful, helpful or relevant to the question.
-Return NO if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
 
 #######
 Information
@@ -111,8 +109,8 @@ Information
 Question
 {question}
 ######
-Return YES if the provided information is useful, helpful or relevant to the question.
-Return NO if the provided information is not relevant at all to the question.
+Return 1 if the provided information is useful, helpful or relevant to the question.
+Return 0 if the provided information is not relevant at all to the question.
 """
 
 MESSAGE_3 = """
@@ -191,7 +189,7 @@ def is_relevant(
         "outputs": {},  # store the raw output of the LLM
     }
 
-    for i, message in enumerate([MESSAGE_5]):
+    for i, message in enumerate([MESSAGE_1, MESSAGE_2]):
         result["decisions"][i], result["outputs"][i] = [], []
         for repeat in range(num_repeats):
             messages = [
@@ -248,7 +246,7 @@ def dynamic_community_selection(
     community_tree = utils.get_community_hierarchy(INPUT_DIR)
     # check_community_hierarchy(report_df, community_tree)
 
-    print(f"QUERY: {query}\n")
+    print(f"\nQUERY: {query}\n")
 
     start = time()
 
@@ -473,6 +471,7 @@ def test_multi_query():
 
 
 if __name__ == "__main__":
-    for qid in [9]:
+    for qid in list(utils.QUERIES.keys()):
+        output_dir = Path(f"results/dynamic/query{qid:03d}")
         main(qid=qid, use_dynamic_selection=True)
     # test_multi_query()

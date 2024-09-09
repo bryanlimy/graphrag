@@ -1,12 +1,13 @@
-import graphrag.index.graph.extractors.community_reports.schemas as schemas
-import pandas as pd
 import sys
-from typing import List
-from sklearn.metrics import confusion_matrix
-import numpy as np
 from pathlib import Path
+from typing import List
+
+import graphrag.index.graph.extractors.community_reports.schemas as schemas
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 QUERIES = {
     9: "Are there any common educational or career paths among the guests?",

@@ -1,14 +1,15 @@
 """Util functions to embed a collection of text using OpenAI embedding model"""
 
+import asyncio
 import os
 import uuid
-import asyncio
-from tqdm.asyncio import tqdm_asyncio
 from dataclasses import dataclass
-from graphrag.query.llm.base import BaseTextEmbedding
+
 from graphrag.model.text_unit import TextUnit
+from graphrag.query.llm.base import BaseTextEmbedding
 from graphrag.query.llm.oai.embedding import OpenAIEmbedding
 from graphrag.query.llm.oai.typing import OpenaiApiType
+from tqdm.asyncio import tqdm_asyncio
 
 
 class TextEmbedder:
