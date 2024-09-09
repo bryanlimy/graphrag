@@ -4,3 +4,4 @@ test.txt
 *.pkl
 decisions
 results
+*.npy
