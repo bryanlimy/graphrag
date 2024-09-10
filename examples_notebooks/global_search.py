@@ -276,7 +276,7 @@ def dynamic_community_selection(
             token_encoder=token_encoder,
             query=query,
             report=report,
-            num_repeats=1,
+            num_repeats=5,
         )
 
         results["llm_calls"] += result["llm_calls"]
