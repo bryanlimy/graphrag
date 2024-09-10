@@ -1,5 +1,3 @@
-import asyncio
-import os
 import pickle
 from math import ceil
 from math import floor
@@ -9,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.ticker import MultipleLocator
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 

@@ -180,7 +180,7 @@ def is_relevant(
     query: str,
     report: pd.DataFrame,
     num_repeats: int = 1,
-) -> (str, Dict[str, Any]):
+) -> (int, Dict[str, Any]):
     result = {
         "llm_calls": 0,
         "prompt_tokens": 0,
@@ -189,7 +189,7 @@ def is_relevant(
         "outputs": {},  # store the raw output of the LLM
     }
 
-    for i, message in enumerate([MESSAGE_1, MESSAGE_2]):
+    for i, message in enumerate([MESSAGE_5]):
         result["decisions"][i], result["outputs"][i] = [], []
         for repeat in range(num_repeats):
             messages = [
@@ -233,7 +233,7 @@ def is_relevant(
             y1=result["decisions"][0], y2=result["decisions"][1]
         )
 
-    return decision, result
+    return int(decision), result
 
 
 def dynamic_community_selection(
@@ -256,7 +256,7 @@ def dynamic_community_selection(
         "llm_calls": 0,
         "prompt_tokens": 0,
         "output_tokens": 0,
-        "decisions": [],
+        "decisions": {},
         "outputs": {},
         "agreements": [],
     }
@@ -282,7 +282,7 @@ def dynamic_community_selection(
         results["llm_calls"] += result["llm_calls"]
         results["prompt_tokens"] += result["prompt_tokens"]
         results["output_tokens"] += result["output_tokens"]
-        results["decisions"].append(decision)
+        results["decisions"][community] = decision
         results["outputs"][community] = result["outputs"]
         if "agreement" in result:
             results["agreements"].append(result["agreement"])
@@ -290,7 +290,7 @@ def dynamic_community_selection(
         statement = f"Community {community} (level: {report.level}) {report.title}\n"
 
         append_communities = []
-        if int(decision[0]) > 1:
+        if decision > 1:
             sub_communities = community_tree.loc[
                 community_tree["community"] == community
             ].sub_community
@@ -327,7 +327,8 @@ def dynamic_community_selection(
 
     end = time()
 
-    print(f"Decision distribution: {Counter(results['decisions'])}")
+    results["relevant_communities"] = list(relevant_communities)
+    print(f"Decision distribution: {dict(Counter(results['decisions'].values()))}")
     if len(results["agreements"]):
         print(f"Average agreement score: {np.mean(results['agreements']):.02f}.")
         utils.plot_agreement(
@@ -435,9 +436,7 @@ def main(qid: int, use_dynamic_selection: bool = True):
     with open(result_dir / "response.md", "w") as file:
         response = f"### Query: {query}\n\n"
         if "decisions" in selection_result:
-            response += (
-                f"Decision distribution: {Counter(selection_result['decisions'])}\n\n"
-            )
+            response += f"Decision distribution: {dict(Counter(selection_result['decisions'].values()))}\n\n"
         response += f"Total report count: {len(report_df)}<br>\n"
         response += (
             f"Report counts after dynamic community selection: {len(reports)}\n\n"
@@ -473,5 +472,10 @@ def test_multi_query():
 if __name__ == "__main__":
     for qid in list(utils.QUERIES.keys()):
         output_dir = Path(f"results/dynamic/query{qid:03d}")
-        main(qid=qid, use_dynamic_selection=True)
+        if output_dir.is_dir():
+            continue
+        try:
+            main(qid=qid, use_dynamic_selection=True)
+        except Exception as e:
+            print(e)
     # test_multi_query()
