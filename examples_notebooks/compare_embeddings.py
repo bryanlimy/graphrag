@@ -10,7 +10,6 @@ import seaborn as sns
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
-
 import plot
 import utils
 from compute_community_embedding import embed_text
@@ -373,32 +372,32 @@ def main():
         filename=PLOT_DIR / "pairwise_similarity_by_level.jpg",
     )
 
-    # similarities, decisions = [], []
-    # for qid in tqdm(utils.QUERIES.keys()):
-    #     similarity, decision = compare_community_embedding_with_query(
-    #         qid=qid,
-    #         embedding_df=embedding_df,
-    #     )
-    #     if similarity is not None and decision is not None:
-    #         similarities.extend(similarity)
-    #         decisions.extend(decision)
-    # similarities = np.array(similarities, dtype=np.float32)
-    # decisions = np.array(decisions, dtype=np.float32)
-    #
-    # np.save("similarities.npy", similarities, allow_pickle=False)
-    # np.save("decisions.npy", decisions, allow_pickle=False)
-    #
-    # similarities = np.load("similarities.npy", allow_pickle=False)
-    # decisions = np.load("decisions.npy", allow_pickle=False)
-    #
-    # plot_community_decision(
-    #     similarities=similarities,
-    #     decisions=decisions,
-    #     filename=PLOT_DIR / f"community_decision_similarity.jpg",
-    #     title="Cosine similarity between\n query and community embeddings",
-    #     scale_width=True,
-    #     add_p_value=True,
-    # )
+    similarities, decisions = [], []
+    for qid in tqdm(utils.QUERIES.keys()):
+        similarity, decision = compare_community_embedding_with_query(
+            qid=qid,
+            embedding_df=embedding_df,
+        )
+        if similarity is not None and decision is not None:
+            similarities.extend(similarity)
+            decisions.extend(decision)
+    similarities = np.array(similarities, dtype=np.float32)
+    decisions = np.array(decisions, dtype=np.float32)
+
+    np.save("similarities.npy", similarities, allow_pickle=False)
+    np.save("decisions.npy", decisions, allow_pickle=False)
+
+    similarities = np.load("similarities.npy", allow_pickle=False)
+    decisions = np.load("decisions.npy", allow_pickle=False)
+
+    plot_community_decision(
+        similarities=similarities,
+        decisions=decisions,
+        filename=PLOT_DIR / f"community_decision_similarity.jpg",
+        title="Cosine similarity between\n query and community embeddings",
+        scale_width=True,
+        add_p_value=True,
+    )
 
     print(f"saved plots to {PLOT_DIR}")
 

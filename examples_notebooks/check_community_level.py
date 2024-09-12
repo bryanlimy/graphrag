@@ -1,20 +1,16 @@
 import pickle
-from math import ceil
-from math import floor
+from collections import Counter
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.metrics.pairwise import cosine_similarity
+from scipy.stats import sem
 from tqdm import tqdm
-from collections import Counter
-
 
 import plot
 import utils
-from compute_community_embedding import embed_text
 
 DPI = 300
 INPUT_DIR = Path("./inputs/podcast")
@@ -26,7 +22,6 @@ plot.set_font()
 TICK_FONTSIZE = 8
 LABEL_FONTSIZE = 9
 TITLE_FONTSIZE = 10
-from scipy.stats import sem
 
 
 def plot_selected_community_level(

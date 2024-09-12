@@ -111,8 +111,8 @@ def plot_agreement(agreements: List[float], filename: Path = None):
     plt.close(figure)
 
 
-def get_community_hierarchy(input_dir: str):
-    node_df = pd.read_parquet(f"{input_dir}/create_final_nodes.parquet")
+def get_community_hierarchy(input_dir: Path):
+    node_df = pd.read_parquet(input_dir / "create_final_nodes.parquet")
 
     community_df = (
         node_df.groupby([schemas.NODE_COMMUNITY, schemas.NODE_LEVEL])
