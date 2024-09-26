@@ -19,7 +19,10 @@ log = logging.getLogger(__name__)
 
 
 class DynamicCommunitySelection:
-    """Dynamic community selection to select community reports that are relevant to the query."""
+    """Dynamic community selection to select community reports that are relevant to the query.
+
+    Any community report with a rating ABOVE the rating_threshold is considered relevant.
+    """
 
     def __init__(
         self,
@@ -32,6 +35,7 @@ class DynamicCommunitySelection:
         use_summary: bool = False,
         use_logit_bias: bool = True,
         concurrent_coroutines: int = 4,
+        rating_threshold: int = 1,
     ):
         self.reports = {report.community_id: report for report in community_reports}
         # mapping from community to sub communities
@@ -61,12 +65,16 @@ class DynamicCommunitySelection:
         self.num_repeats = num_repeats
         self.use_summary = use_summary
         self.llm_kwargs = {"temperature": 0.0, "max_tokens": 2}
+        possible_ratings = [1, 2, 3, 4, 5]
         if use_logit_bias:
             # bias the output to the rating tokens
             self.llm_kwargs["logit_bias"] = {
-                token_encoder.encode(token)[0]: 5 for token in ["1", "2", "3", "4", "5"]
+                token_encoder.encode(str(token))[0]: 5 for token in possible_ratings
             }
         self.semaphore = asyncio.Semaphore(concurrent_coroutines)
+        if rating_threshold not in possible_ratings:
+            raise ValueError("rating_threshold must be one of %s" % possible_ratings)
+        self.rating_threshold = rating_threshold
 
     async def select(self, query: str) -> tuple[list[CommunityReport], dict[str, int]]:
         """
@@ -82,22 +90,24 @@ class DynamicCommunitySelection:
         llm_info = {"llm_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
         relevant_communities = set()
         while queue:
-            gather_results = await asyncio.gather(*[
-                rate_relevancy(
-                    query=query,
-                    description=(
-                        self.reports[community].summary
-                        if self.use_summary
-                        else self.reports[community].full_content
-                    ),
-                    llm=self.llm,
-                    token_encoder=self.token_encoder,
-                    num_repeats=self.num_repeats,
-                    semaphore=self.semaphore,
-                    **self.llm_kwargs,
-                )
-                for community in queue
-            ])
+            gather_results = await asyncio.gather(
+                *[
+                    rate_relevancy(
+                        query=query,
+                        description=(
+                            self.reports[community].summary
+                            if self.use_summary
+                            else self.reports[community].full_content
+                        ),
+                        llm=self.llm,
+                        token_encoder=self.token_encoder,
+                        num_repeats=self.num_repeats,
+                        semaphore=self.semaphore,
+                        **self.llm_kwargs,
+                    )
+                    for community in queue
+                ]
+            )
 
             communities_to_rate = []
             for community, result in zip(queue, gather_results, strict=True):
@@ -111,16 +121,18 @@ class DynamicCommunitySelection:
                 llm_info["llm_calls"] += result["llm_calls"]
                 llm_info["prompt_tokens"] += result["prompt_tokens"]
                 llm_info["output_tokens"] += result["output_tokens"]
-                if rating > 1:
+                if rating > self.rating_threshold:
                     relevant_communities.add(community)
                     # find children nodes of the current node and append them to the queue
                     # TODO check why some sub_communities are NOT in report_df
                     if community in self.node2children:
-                        communities_to_rate.extend([
-                            sub_community
-                            for sub_community in self.node2children[community]
-                            if sub_community in self.reports
-                        ])
+                        communities_to_rate.extend(
+                            [
+                                sub_community
+                                for sub_community in self.node2children[community]
+                                if sub_community in self.reports
+                            ]
+                        )
                     # remove parent node if the current node is deemed relevant
                     if not self.keep_parent and community in self.node2parent:
                         relevant_communities.discard(self.node2parent[community])

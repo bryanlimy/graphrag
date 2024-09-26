@@ -34,6 +34,7 @@ class GlobalCommunityContext(GlobalContextBuilder):
         entities: list[Entity] | None = None,
         dynamic_selection: bool = False,
         dynamic_selection_use_summary: bool = False,
+        dynamic_selection_threshold: int = 1,
         random_state: int = 86,
         concurrent_coroutines: int = 4,
     ):
@@ -50,6 +51,7 @@ class GlobalCommunityContext(GlobalContextBuilder):
                 keep_parent=False,
                 use_summary=dynamic_selection_use_summary,
                 concurrent_coroutines=concurrent_coroutines,
+                rating_threshold=dynamic_selection_threshold,
             )
         self.random_state = random_state
 
