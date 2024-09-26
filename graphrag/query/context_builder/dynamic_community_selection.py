@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 class DynamicCommunitySelection:
     """Dynamic community selection to select community reports that are relevant to the query.
 
-    Any community report with a rating ABOVE the rating_threshold is considered relevant.
+    Any community report with a rating EQUAL or ABOVE the rating_threshold is considered relevant.
     """
 
     def __init__(
@@ -35,7 +35,7 @@ class DynamicCommunitySelection:
         use_summary: bool = False,
         use_logit_bias: bool = True,
         concurrent_coroutines: int = 4,
-        rating_threshold: int = 1,
+        rating_threshold: int = 2,
     ):
         self.reports = {report.community_id: report for report in community_reports}
         # mapping from community to sub communities
@@ -121,7 +121,7 @@ class DynamicCommunitySelection:
                 llm_info["llm_calls"] += result["llm_calls"]
                 llm_info["prompt_tokens"] += result["prompt_tokens"]
                 llm_info["output_tokens"] += result["output_tokens"]
-                if rating > self.rating_threshold:
+                if rating >= self.rating_threshold:
                     relevant_communities.add(community)
                     # find children nodes of the current node and append them to the queue
                     # TODO check why some sub_communities are NOT in report_df
