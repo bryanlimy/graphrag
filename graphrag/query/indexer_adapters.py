@@ -157,7 +157,9 @@ def read_indexer_entities(
 
 
 def read_indexer_communities(
-    final_communities: pd.DataFrame, final_nodes: pd.DataFrame
+    final_communities: pd.DataFrame,
+    final_nodes: pd.DataFrame,
+    final_community_reports: pd.DataFrame,
 ) -> list[Community]:
     """Read in the Communities from the raw indexing outputs.
 
@@ -165,6 +167,16 @@ def read_indexer_communities(
     """
     community_df = final_communities
     node_df = final_nodes
+    report_df = final_community_reports
+
+    # ensure communities matches community reports
+    missing_reports = community_df[
+        ~community_df.id.isin(report_df.community.unique())
+    ].id.to_list()
+    if len(missing_reports):
+        log.warning("Missing reports for communities: %s", missing_reports)
+        community_df = community_df[community_df.id.isin(report_df.community.unique())]
+        node_df = node_df[node_df.community.isin(report_df.community.unique())]
 
     # reconstruct the community hierarchy
     # note that restore_community_hierarchy only return communities with sub communities
@@ -179,9 +191,6 @@ def read_indexer_communities(
     )
     # add sub community IDs to community DataFrame
     community_df = community_df.merge(community_hierarchy, on="id", how="left")
-    community_df = community_df.drop(
-        columns=["raw_community", "relationship_ids", "text_unit_ids"]
-    )
     # replace NaN sub community IDs with empty list
     community_df.sub_community_ids = community_df.sub_community_ids.apply(
         lambda x: x if isinstance(x, list) else []

@@ -70,4 +70,5 @@ ragtest/
 *.patch
 
 dynamic_search.py
-build/
+evaluate.py
+results/

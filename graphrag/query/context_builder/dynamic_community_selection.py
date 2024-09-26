@@ -17,6 +17,28 @@ from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 
 log = logging.getLogger(__name__)
 
+import os
+from graphrag.query.llm.oai.typing import OpenaiApiType
+
+
+def get_llm(llm_model: str = "gpt-4o"):
+    api_key = os.environ["GRAPHRAG_OPENAI_API_KEY"]
+    api_base = os.environ["GRAPHRAG_OPENAI_API_BASE"]
+    api_version = "2024-02-15-preview"
+    llm_init_params = {
+        "api_key": api_key,
+        "api_base": api_base,
+        "api_version": api_version,
+        "model": llm_model,
+        "deployment_name": llm_model,
+        "api_type": OpenaiApiType.AzureOpenAI,
+        "max_retries": 50,
+    }
+    llm = ChatOpenAI(**llm_init_params)
+    token_encoder = tiktoken.encoding_for_model(llm.model)
+    print(f"Use {llm.model} in dynamic community selection")
+    return llm, token_encoder
+
 
 class DynamicCommunitySelection:
     """Dynamic community selection to select community reports that are relevant to the query.
@@ -59,8 +81,9 @@ class DynamicCommunitySelection:
             for community in communities
             if community.level == "0" and community.id in self.reports
         ]
-        self.llm = llm
-        self.token_encoder = token_encoder
+        self.llm, self.token_encoder = get_llm(llm_model="gpt-4o")
+        # self.llm = llm
+        # self.token_encoder = token_encoder
         self.keep_parent = keep_parent
         self.num_repeats = num_repeats
         self.use_summary = use_summary
@@ -69,14 +92,18 @@ class DynamicCommunitySelection:
         if use_logit_bias:
             # bias the output to the rating tokens
             self.llm_kwargs["logit_bias"] = {
-                token_encoder.encode(str(token))[0]: 5 for token in possible_ratings
+                self.token_encoder.encode(str(token))[0]: 5
+                for token in possible_ratings
             }
         self.semaphore = asyncio.Semaphore(concurrent_coroutines)
         if rating_threshold not in possible_ratings:
             raise ValueError("rating_threshold must be one of %s" % possible_ratings)
-        self.rating_threshold = rating_threshold
+        # self.rating_threshold = rating_threshold
+        self.rating_threshold = 1
 
-    async def select(self, query: str) -> tuple[list[CommunityReport], dict[str, int]]:
+    async def select(
+        self, query: str
+    ) -> tuple[list[CommunityReport], dict[str, int], dict[str, int]]:
         """
         Select relevant communities with respect to the query.
 
@@ -86,7 +113,7 @@ class DynamicCommunitySelection:
         start = time()
         queue = deepcopy(self.root_communities)  # start search from level 0 communities
 
-        ratings = []  # store the ratings for each community
+        ratings = {}  # store the ratings for each community
         llm_info = {"llm_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
         relevant_communities = set()
         while queue:
@@ -117,7 +144,7 @@ class DynamicCommunitySelection:
                     community,
                     rating,
                 )
-                ratings.append(rating)
+                ratings[community] = rating
                 llm_info["llm_calls"] += result["llm_calls"]
                 llm_info["prompt_tokens"] += result["prompt_tokens"]
                 llm_info["output_tokens"] += result["output_tokens"]
@@ -126,13 +153,14 @@ class DynamicCommunitySelection:
                     # find children nodes of the current node and append them to the queue
                     # TODO check why some sub_communities are NOT in report_df
                     if community in self.node2children:
-                        communities_to_rate.extend(
-                            [
-                                sub_community
-                                for sub_community in self.node2children[community]
-                                if sub_community in self.reports
-                            ]
-                        )
+                        for sub_community in self.node2children[community]:
+                            if sub_community in self.reports:
+                                communities_to_rate.append(sub_community)
+                            else:
+                                log.info(
+                                    "dynamic community selection: cannot find community %s in reports",
+                                    sub_community,
+                                )
                     # remove parent node if the current node is deemed relevant
                     if not self.keep_parent and community in self.node2parent:
                         relevant_communities.discard(self.node2parent[community])
@@ -149,10 +177,10 @@ class DynamicCommunitySelection:
             "\t%s out of %s community reports are relevant\n"
             "\tprompt tokens: %s, output tokens: %s",
             int(end - start),
-            dict(sorted(Counter(ratings).items())),
+            dict(sorted(Counter(ratings.values()).items())),
             len(relevant_communities),
             len(self.reports),
             llm_info["prompt_tokens"],
             llm_info["output_tokens"],
         )
-        return community_reports, llm_info
+        return community_reports, llm_info, ratings
