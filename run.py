@@ -1,23 +1,23 @@
-from pathlib import Path
-import logging
-import tiktoken
-import os
-import pandas as pd
 import asyncio
+import logging
+import os
+import pickle
+from pathlib import Path
+from time import time
+
+import pandas as pd
+import tiktoken
+
+from graphrag.model import Community, CommunityReport
+from graphrag.query.context_builder.dynamic_community_selection import (
+    DynamicCommunitySelection,
+)
 from graphrag.query.indexer_adapters import (
     read_indexer_communities,
     read_indexer_reports,
 )
-from time import time
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.llm.oai.typing import OpenaiApiType
-
-from graphrag.query.context_builder.dynamic_community_selection import (
-    DynamicCommunitySelection,
-)
-from graphrag.model import Community, CommunityReport
-
-import pickle
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -79,7 +79,6 @@ async def global_search(
     llm: ChatOpenAI,
     token_encoder: tiktoken.Encoding,
 ):
-
     dynamic_selector = DynamicCommunitySelection(
         community_reports=reports,
         communities=communities,

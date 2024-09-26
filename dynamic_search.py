@@ -1,5 +1,6 @@
-from pathlib import Path
 import logging
+from pathlib import Path
+
 from graphrag.query.cli import run_global_search
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
