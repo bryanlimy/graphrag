@@ -21,25 +21,6 @@ import os
 from graphrag.query.llm.oai.typing import OpenaiApiType
 
 
-def get_llm(llm_model: str = "gpt-4o"):
-    api_key = os.environ["GRAPHRAG_OPENAI_API_KEY"]
-    api_base = os.environ["GRAPHRAG_OPENAI_API_BASE"]
-    api_version = "2024-02-15-preview"
-    llm_init_params = {
-        "api_key": api_key,
-        "api_base": api_base,
-        "api_version": api_version,
-        "model": llm_model,
-        "deployment_name": llm_model,
-        "api_type": OpenaiApiType.AzureOpenAI,
-        "max_retries": 50,
-    }
-    llm = ChatOpenAI(**llm_init_params)
-    token_encoder = tiktoken.encoding_for_model(llm.model)
-    print(f"Use {llm.model} in dynamic community selection")
-    return llm, token_encoder
-
-
 class DynamicCommunitySelection:
     """Dynamic community selection to select community reports that are relevant to the query.
 
@@ -81,9 +62,8 @@ class DynamicCommunitySelection:
             for community in communities
             if community.level == "0" and community.id in self.reports
         ]
-        self.llm, self.token_encoder = get_llm(llm_model="gpt-4o")
-        # self.llm = llm
-        # self.token_encoder = token_encoder
+        self.llm = llm
+        self.token_encoder = token_encoder
         self.keep_parent = keep_parent
         self.num_repeats = num_repeats
         self.use_summary = use_summary

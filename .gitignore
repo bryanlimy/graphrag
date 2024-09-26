@@ -69,6 +69,4 @@ ragtest/
 .pipeline
 *.patch
 
-dynamic_search.py
-evaluate.py
 results/
