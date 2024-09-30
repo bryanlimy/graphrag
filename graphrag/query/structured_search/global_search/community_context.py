@@ -33,11 +33,11 @@ class GlobalCommunityContext(GlobalContextBuilder):
         token_encoder: tiktoken.Encoding,
         entities: list[Entity] | None = None,
         dynamic_selection: bool = False,
-        dynamic_selection_use_summary: bool = False,
-        dynamic_selection_threshold: int = 2,
         dynamic_selection_keep_parent: bool = False,
+        dynamic_selection_use_summary: bool = False,
+        dynamic_concurrent_coroutines: int = 4,
+        dynamic_selection_threshold: int = 2,
         random_state: int = 86,
-        concurrent_coroutines: int = 4,
     ):
         self.community_reports = community_reports
         self.entities = entities
@@ -51,7 +51,7 @@ class GlobalCommunityContext(GlobalContextBuilder):
                 token_encoder=token_encoder,
                 keep_parent=dynamic_selection_keep_parent,
                 use_summary=dynamic_selection_use_summary,
-                concurrent_coroutines=concurrent_coroutines,
+                concurrent_coroutines=dynamic_concurrent_coroutines,
                 rating_threshold=dynamic_selection_threshold,
             )
         self.random_state = random_state

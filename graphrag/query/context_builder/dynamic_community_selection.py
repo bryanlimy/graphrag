@@ -10,7 +10,7 @@ from copy import deepcopy
 from time import time
 
 import tiktoken
-
+from tqdm.asyncio import tqdm
 from graphrag.model import Community, CommunityReport
 from graphrag.query.context_builder.rate_relevancy import rate_relevancy
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
@@ -75,8 +75,7 @@ class DynamicCommunitySelection:
         self.semaphore = asyncio.Semaphore(concurrent_coroutines)
         if rating_threshold not in possible_ratings:
             raise ValueError("rating_threshold must be one of %s" % possible_ratings)
-        # self.rating_threshold = rating_threshold
-        self.rating_threshold = 1
+        self.rating_threshold = rating_threshold
 
     async def select(
         self, query: str
@@ -89,27 +88,31 @@ class DynamicCommunitySelection:
         """
         start = time()
         queue = deepcopy(self.root_communities)  # start search from level 0 communities
+        level = 0
 
         ratings = {}  # store the ratings for each community
         llm_info = {"llm_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
         relevant_communities = set()
         while queue:
-            gather_results = await asyncio.gather(*[
-                rate_relevancy(
-                    query=query,
-                    description=(
-                        self.reports[community].summary
-                        if self.use_summary
-                        else self.reports[community].full_content
-                    ),
-                    llm=self.llm,
-                    token_encoder=self.token_encoder,
-                    num_repeats=self.num_repeats,
-                    semaphore=self.semaphore,
-                    **self.llm_kwargs,
-                )
-                for community in queue
-            ])
+            gather_results = await tqdm.gather(
+                *[
+                    rate_relevancy(
+                        query=query,
+                        description=(
+                            self.reports[community].summary
+                            if self.use_summary
+                            else self.reports[community].full_content
+                        ),
+                        llm=self.llm,
+                        token_encoder=self.token_encoder,
+                        num_repeats=self.num_repeats,
+                        semaphore=self.semaphore,
+                        **self.llm_kwargs,
+                    )
+                    for community in queue
+                ],
+                desc=f"Level {level}",
+            )
 
             communities_to_rate = []
             for community, result in zip(queue, gather_results, strict=True):
@@ -140,6 +143,7 @@ class DynamicCommunitySelection:
                     if not self.keep_parent and community in self.node2parent:
                         relevant_communities.discard(self.node2parent[community])
             queue = communities_to_rate
+            level += 1
 
         community_reports = [
             self.reports[community] for community in relevant_communities
