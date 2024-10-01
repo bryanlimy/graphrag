@@ -1,8 +1,9 @@
 import pickle
 from collections import Counter
 from pathlib import Path
-from sklearn.metrics import cohen_kappa_score
+
 import numpy as np
+from sklearn.metrics import cohen_kappa_score
 
 from run import QUERIES
 
@@ -70,11 +71,11 @@ def compare(method1: str, method2: str):
 
     print(
         f"Average agreement between {method1} vs {method2}: "
-        f"{np.mean(agreements)*100:.02f}% +/- {np.std(agreements)*100:.02f}"
+        f"{np.mean(agreements) * 100:.02f}% +/- {np.std(agreements) * 100:.02f}"
     )
     print(
         f"Average retrieval rate between {method2} against {method1}: "
-        f"{np.mean(retrieval_rates)*100:.02f}% +/- {np.std(retrieval_rates)*100:.02f}\n\n"
+        f"{np.mean(retrieval_rates) * 100:.02f}% +/- {np.std(retrieval_rates) * 100:.02f}\n\n"
     )
 
 

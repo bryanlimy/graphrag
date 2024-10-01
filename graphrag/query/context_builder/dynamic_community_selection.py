@@ -9,8 +9,10 @@ from collections import Counter
 from copy import deepcopy
 from time import time
 from typing import Any
+
 import tiktoken
 from tqdm.asyncio import tqdm
+
 from graphrag.model import Community, CommunityReport
 from graphrag.query.context_builder.rate_relevancy import rate_relevancy
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI

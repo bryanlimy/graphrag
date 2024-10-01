@@ -14,8 +14,8 @@ from graphrag.query.context_builder.dynamic_community_selection import (
 )
 from graphrag.query.indexer_adapters import (
     read_indexer_communities,
-    read_indexer_reports,
     read_indexer_entities,
+    read_indexer_reports,
 )
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.llm.oai.typing import OpenaiApiType
