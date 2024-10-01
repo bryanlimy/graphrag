@@ -5,7 +5,7 @@
 
 import logging
 from typing import cast
-
+from tqdm import tqdm
 import pandas as pd
 from datashaper import TableContainer, VerbInput, verb
 
@@ -56,7 +56,7 @@ def restore_community_hierarchy(
             len(current_level_communities),
         )
 
-        for current_community in current_level_communities:
+        for current_community in tqdm(current_level_communities, desc=f"Level {level}"):
             current_entities = current_level_communities[current_community]
 
             # loop through next level's communities to find all the subcommunities
@@ -64,12 +64,14 @@ def restore_community_hierarchy(
             for next_level_community in next_level_communities:
                 next_entities = next_level_communities[next_level_community]
                 if set(next_entities).issubset(set(current_entities)):
-                    community_hierarchy.append({
-                        community_column: current_community,
-                        schemas.COMMUNITY_LEVEL: level,
-                        schemas.SUB_COMMUNITY: next_level_community,
-                        schemas.SUB_COMMUNITY_SIZE: len(next_entities),
-                    })
+                    community_hierarchy.append(
+                        {
+                            community_column: current_community,
+                            schemas.COMMUNITY_LEVEL: level,
+                            schemas.SUB_COMMUNITY: next_level_community,
+                            schemas.SUB_COMMUNITY_SIZE: len(next_entities),
+                        }
+                    )
 
                     entities_found += len(next_entities)
                     if entities_found == len(current_entities):

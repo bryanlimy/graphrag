@@ -82,7 +82,7 @@ async def global_search(
     ------
     TODO: Document any exceptions to expect.
     """
-    _communities = read_indexer_communities(communities, nodes)
+    _communities = read_indexer_communities(communities, nodes, community_reports)
     reports = read_indexer_reports(
         community_reports, nodes, community_level, dynamic_selection
     )
@@ -137,7 +137,7 @@ async def global_search_streaming(
     ------
     TODO: Document any exceptions to expect.
     """
-    _communities = read_indexer_communities(communities, nodes)
+    _communities = read_indexer_communities(communities, nodes, community_reports)
     reports = read_indexer_reports(
         community_reports, nodes, community_level, dynamic_selection
     )

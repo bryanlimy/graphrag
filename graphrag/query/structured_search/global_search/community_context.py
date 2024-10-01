@@ -37,6 +37,7 @@ class GlobalCommunityContext(GlobalContextBuilder):
         dynamic_selection_use_summary: bool = False,
         dynamic_concurrent_coroutines: int = 4,
         dynamic_selection_threshold: int = 2,
+        dynamic_start_with_root: bool = True,
         random_state: int = 86,
     ):
         self.community_reports = community_reports
@@ -53,6 +54,7 @@ class GlobalCommunityContext(GlobalContextBuilder):
                 use_summary=dynamic_selection_use_summary,
                 concurrent_coroutines=dynamic_concurrent_coroutines,
                 rating_threshold=dynamic_selection_threshold,
+                start_with_root=dynamic_start_with_root,
             )
         self.random_state = random_state
 

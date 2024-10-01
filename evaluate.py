@@ -1,21 +1,88 @@
 import pickle
 from collections import Counter
 from pathlib import Path
+from sklearn.metrics import cohen_kappa_score
+import numpy as np
 
 from run import QUERIES
 
 OUTPUT_DIR = Path("results")
 
 
-def main():
+def load_result(output_dir: Path):
+    results = {}
     for qid, query in QUERIES.items():
-        print(f"Query ({qid}): {query}")
-        filename = OUTPUT_DIR / "gpt-4o-full_content" / f"qid{qid:03d}.pkl"
-        with open(filename, "rb") as file:
+        with open(output_dir / f"qid{qid:03d}.pkl", "rb") as file:
             result = pickle.load(file)
-        print(
-            f"rating distribution: {dict(sorted(Counter(result['ratings'].values()).items()))}"
+        # sort ratings by community ID
+        result["ratings"] = dict(sorted(result["ratings"].items()))
+        results[qid] = result
+    return results
+
+
+def calculate_agreement(ratings1: list[int], ratings2: list[int]):
+    assert len(ratings1) == len(ratings2)
+    # agreement = cohen_kappa_score(
+    #     y1=ratings1,
+    #     y2=ratings2,
+    #     labels=[1, 2, 3, 4, 5],
+    # )
+    agreement = np.sum(np.array(ratings1) == np.array(ratings2)) / len(ratings1)
+    return agreement
+
+
+def calculate_retrieval_rate(
+    ground_truth: list[int], ratings: list[int], threshold: int = 2
+):
+    assert len(ground_truth) == len(ratings)
+    g_count, r_count = 0, 0
+    for i in range(len(ground_truth)):
+        if ground_truth[i] >= threshold:
+            g_count += 1
+            if ratings[i] >= threshold:
+                r_count += 1
+    return r_count / g_count if g_count > 0 else np.nan
+
+
+def compare(method1: str, method2: str):
+    result1 = load_result(OUTPUT_DIR / method1)
+    result2 = load_result(OUTPUT_DIR / method2)
+
+    agreements = []
+    retrieval_rates = []
+    for qid in QUERIES.keys():
+        agreement = calculate_agreement(
+            ratings1=list(result1[qid]["ratings"].values()),
+            ratings2=list(result2[qid]["ratings"].values()),
         )
+        agreements.append(agreement)
+        retrieval_rate = calculate_retrieval_rate(
+            ground_truth=list(result1[qid]["ratings"].values()),
+            ratings=list(result2[qid]["ratings"].values()),
+        )
+        if not np.isnan(retrieval_rate):
+            retrieval_rates.append(retrieval_rate)
+        # print(
+        #     f"Query ({qid})"
+        #     f"\tAgreement: {agreement:.04f}"
+        #     f"\tRetrieval rate: {retrieval_rate:.04f}"
+        # )
+
+    print(
+        f"Average agreement between {method1} vs {method2}: "
+        f"{np.mean(agreements)*100:.02f}% +/- {np.std(agreements)*100:.02f}"
+    )
+    print(
+        f"Average retrieval rate between {method2} against {method1}: "
+        f"{np.mean(retrieval_rates)*100:.02f}% +/- {np.std(retrieval_rates)*100:.02f}\n\n"
+    )
+
+
+def main():
+    compare(method1="gpt-4o-full_content", method2="gpt-4o-summary")
+    compare(method1="gpt-4o-full_content", method2="gpt-4o-mini-full_content")
+    compare(method1="gpt-4o-full_content", method2="gpt-4o-mini-summary")
+    compare(method1="gpt-4o-mini-full_content", method2="gpt-4o-mini-summary")
 
 
 if __name__ == "__main__":

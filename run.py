@@ -15,6 +15,7 @@ from graphrag.query.context_builder.dynamic_community_selection import (
 from graphrag.query.indexer_adapters import (
     read_indexer_communities,
     read_indexer_reports,
+    read_indexer_entities,
 )
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.llm.oai.typing import OpenaiApiType
@@ -29,8 +30,8 @@ OUTPUT_DIR = Path("results")
 
 
 def get_llm(llm_model: str = "gpt-4o"):
-    api_key = os.environ["GRAPHRAG_OPENAI_API_KEY"]
-    api_base = os.environ["GRAPHRAG_OPENAI_API_BASE"]
+    api_key = os.environ["GRAPHRAG_LLM_API_KEY"]
+    api_base = os.environ["GRAPHRAG_LLM_API_BASE"]
     api_version = "2024-02-15-preview"
     llm_init_params = {
         "api_key": api_key,
@@ -65,7 +66,7 @@ QUERIES = {
     75: "How do tech leaders describe the role of mentorship in their career journeys?",
     79: "What patterns in word choice are noticeable when leaders discuss industry challenges?",
     85: "How does the host's questioning style change when talking to leaders from different tech sectors?",
-    97: "Retrieving data. Wait a few seconds and try to cut or copy again.",
+    97: "How does the flow of the conversation affect the depth of the stories shared by the guests?",
     101: "What narrative structures do guests rely on when recounting the journey of their companies or own careers?",
     125: "What new markets or sectors do guests believe will be created by future technologies?",
 }
@@ -78,6 +79,7 @@ async def global_search(
     reports: list[CommunityReport],
     llm: ChatOpenAI,
     token_encoder: tiktoken.Encoding,
+    use_summary: bool,
 ):
     dynamic_selector = DynamicCommunitySelection(
         community_reports=reports,
@@ -85,17 +87,17 @@ async def global_search(
         llm=llm,
         token_encoder=token_encoder,
         keep_parent=True,
-        use_summary=False,
+        use_summary=use_summary,
         concurrent_coroutines=4,
         rating_threshold=1,
     )
 
     start = time()
-    _, llm_info, ratings = await dynamic_selector.select(query)
+    _, llm_info = await dynamic_selector.select(query)
     end = time()
 
     result = {
-        "ratings": ratings,
+        "ratings": llm_info["ratings"],
         "elapse": int(end - start),
         "llm_calls": llm_info["llm_calls"],
         "prompt_tokens": llm_info["prompt_tokens"],
@@ -103,13 +105,17 @@ async def global_search(
     }
     print(f'Elapse: {result["elapse"]}s')
 
-    filename = OUTPUT_DIR / "gpt-4o-full_content" / f"qid{qid:03d}.pkl"
+    filename = (
+        OUTPUT_DIR
+        / f"{llm.model}-{'summary' if use_summary else 'full_content'}"
+        / f"qid{qid:03d}.pkl"
+    )
     filename.parent.mkdir(parents=True, exist_ok=True)
     with open(filename, "wb") as file:
         pickle.dump(result, file)
 
 
-def main():
+def main(llm_model: str, use_summary: bool):
     community_df = pd.read_parquet(INPUT_DIR / "create_final_communities.parquet")
     entity_df = pd.read_parquet(INPUT_DIR / "create_final_nodes.parquet")
     report_df = pd.read_parquet(INPUT_DIR / "create_final_community_reports.parquet")
@@ -126,7 +132,7 @@ def main():
         dynamic_selection=True,
     )
 
-    llm, token_encoder = get_llm(llm_model="gpt-4o")
+    llm, token_encoder = get_llm(llm_model=llm_model)
     for qid, query in QUERIES.items():
         print(f"Query ({qid}): {query}")
         asyncio.run(
@@ -137,9 +143,53 @@ def main():
                 reports=reports,
                 llm=llm,
                 token_encoder=token_encoder,
+                use_summary=use_summary,
             )
         )
 
 
+def method(community_level: int):
+    full_input_dir = Path("examples_notebooks") / "inputs" / "AP"
+    entity_df = pd.read_parquet(full_input_dir / "create_final_nodes.parquet")
+    report_df = pd.read_parquet(
+        full_input_dir / "create_final_community_reports.parquet"
+    )
+    entity_embedding_df = pd.read_parquet(
+        full_input_dir / "create_final_entities.parquet"
+    )
+    community_df = pd.read_parquet(full_input_dir / "create_final_communities.parquet")
+
+    filename = full_input_dir / "community_tree.pkl"
+    if filename.exists():
+        with open(filename, "rb") as file:
+            communities = pickle.load(file)
+    else:
+        communities = read_indexer_communities(community_df, entity_df, report_df)
+    reports = read_indexer_reports(
+        report_df, entity_df, community_level=community_level, dynamic_selection=True
+    )
+    entities = read_indexer_entities(
+        entity_df, entity_embedding_df, community_level=community_level
+    )
+
+    llm, token_encoder = get_llm(llm_model="gpt-4o")
+    dynamic_selector = DynamicCommunitySelection(
+        community_reports=reports,
+        communities=communities,
+        llm=llm,
+        token_encoder=token_encoder,
+        keep_parent=True,
+        use_summary=False,
+        concurrent_coroutines=4,
+        rating_threshold=1,
+        start_with_root=False,
+    )
+    print(dynamic_selector.starting_communities)
+
+
 if __name__ == "__main__":
-    main()
+    method(community_level=1)
+    # main(llm_model="gpt-4o", use_summary=False)
+    # main(llm_model="gpt-4o", use_summary=True)
+    # main(llm_model="gpt-4o-mini", use_summary=True)
+    # main(llm_model="gpt-4o-mini", use_summary=False)

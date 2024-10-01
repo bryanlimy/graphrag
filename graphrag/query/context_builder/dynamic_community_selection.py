@@ -8,7 +8,7 @@ import logging
 from collections import Counter
 from copy import deepcopy
 from time import time
-
+from typing import Any
 import tiktoken
 from tqdm.asyncio import tqdm
 from graphrag.model import Community, CommunityReport
@@ -36,6 +36,7 @@ class DynamicCommunitySelection:
         use_logit_bias: bool = True,
         concurrent_coroutines: int = 4,
         rating_threshold: int = 2,
+        start_with_root: bool = True,
     ):
         self.reports = {report.community_id: report for report in community_reports}
         # mapping from community to sub communities
@@ -53,12 +54,20 @@ class DynamicCommunitySelection:
             for community, sub_communities in self.node2children.items()
             for sub_community in sub_communities
         }
-        # get all communities at level 0
-        self.root_communities: list[str] = [
-            community.id
-            for community in communities
-            if community.level == "0" and community.id in self.reports
-        ]
+        # set the communities to start the search with
+        if start_with_root:
+            # get all communities at level 0
+            self.starting_communities: list[str] = [
+                community.id
+                for community in communities
+                if community.level == "0" and community.id in self.reports
+            ]
+        else:
+            self.starting_communities: list[str] = [
+                community.id
+                for community in communities
+                if community.id in self.reports
+            ]
         self.llm = llm
         self.token_encoder = token_encoder
         self.keep_parent = keep_parent
@@ -77,9 +86,7 @@ class DynamicCommunitySelection:
             raise ValueError("rating_threshold must be one of %s" % possible_ratings)
         self.rating_threshold = rating_threshold
 
-    async def select(
-        self, query: str
-    ) -> tuple[list[CommunityReport], dict[str, int], dict[str, int]]:
+    async def select(self, query: str) -> tuple[list[CommunityReport], dict[str, Any]]:
         """
         Select relevant communities with respect to the query.
 
@@ -87,7 +94,7 @@ class DynamicCommunitySelection:
             query: the query to rate against
         """
         start = time()
-        queue = deepcopy(self.root_communities)  # start search from level 0 communities
+        queue = deepcopy(self.starting_communities)
         level = 0
 
         ratings = {}  # store the ratings for each community
@@ -162,4 +169,5 @@ class DynamicCommunitySelection:
             llm_info["prompt_tokens"],
             llm_info["output_tokens"],
         )
-        return community_reports, llm_info, ratings
+        llm_info["ratings"] = ratings
+        return community_reports, llm_info
