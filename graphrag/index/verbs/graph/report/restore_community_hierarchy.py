@@ -8,7 +8,6 @@ from typing import cast
 
 import pandas as pd
 from datashaper import TableContainer, VerbInput, verb
-from tqdm import tqdm
 
 import graphrag.index.graph.extractors.community_reports.schemas as schemas
 
@@ -57,7 +56,7 @@ def restore_community_hierarchy(
             len(current_level_communities),
         )
 
-        for current_community in tqdm(current_level_communities, desc=f"Level {level}"):
+        for current_community in current_level_communities:
             current_entities = current_level_communities[current_community]
 
             # loop through next level's communities to find all the subcommunities

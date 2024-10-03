@@ -21,6 +21,10 @@ def load_result(output_dir: Path):
     return results
 
 
+def get_rating_distribution(ratings: list[int]):
+    return dict(sorted(Counter(ratings).items()))
+
+
 def calculate_agreement(ratings1: list[int], ratings2: list[int]):
     assert len(ratings1) == len(ratings2)
     # agreement = cohen_kappa_score(
@@ -52,22 +56,22 @@ def compare(method1: str, method2: str):
     agreements = []
     retrieval_rates = []
     for qid in QUERIES.keys():
-        agreement = calculate_agreement(
-            ratings1=list(result1[qid]["ratings"].values()),
-            ratings2=list(result2[qid]["ratings"].values()),
-        )
+        ratings1 = list(result1[qid]["ratings"].values())
+        ratings2 = list(result2[qid]["ratings"].values())
+        agreement = calculate_agreement(ratings1=ratings1, ratings2=ratings2)
         agreements.append(agreement)
         retrieval_rate = calculate_retrieval_rate(
-            ground_truth=list(result1[qid]["ratings"].values()),
-            ratings=list(result2[qid]["ratings"].values()),
+            ground_truth=ratings1, ratings=ratings2
         )
         if not np.isnan(retrieval_rate):
             retrieval_rates.append(retrieval_rate)
-        # print(
-        #     f"Query ({qid})"
-        #     f"\tAgreement: {agreement:.04f}"
-        #     f"\tRetrieval rate: {retrieval_rate:.04f}"
-        # )
+        print(
+            f"Query ({qid})"
+            f"\tAgreement: {agreement:.04f}"
+            f"\tRetrieval rate: {retrieval_rate:.04f}\n"
+            f"{method1}: {get_rating_distribution(ratings1)}\n"
+            f"{method2}: {get_rating_distribution(ratings2)}\n"
+        )
 
     print(
         f"Average agreement between {method1} vs {method2}: "
@@ -80,10 +84,10 @@ def compare(method1: str, method2: str):
 
 
 def main():
-    compare(method1="gpt-4o-full_content", method2="gpt-4o-summary")
+    # compare(method1="gpt-4o-full_content", method2="gpt-4o-summary")
     compare(method1="gpt-4o-full_content", method2="gpt-4o-mini-full_content")
-    compare(method1="gpt-4o-full_content", method2="gpt-4o-mini-summary")
-    compare(method1="gpt-4o-mini-full_content", method2="gpt-4o-mini-summary")
+    # compare(method1="gpt-4o-full_content", method2="gpt-4o-mini-summary")
+    # compare(method1="gpt-4o-mini-full_content", method2="gpt-4o-mini-summary")
 
 
 if __name__ == "__main__":

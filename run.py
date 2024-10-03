@@ -3,10 +3,11 @@ import logging
 import os
 import pickle
 from pathlib import Path
-from time import time
+from time import sleep, time
 
 import pandas as pd
 import tiktoken
+from urllib3 import request
 
 from graphrag.model import Community, CommunityReport
 from graphrag.query.context_builder.dynamic_community_selection import (
@@ -14,7 +15,6 @@ from graphrag.query.context_builder.dynamic_community_selection import (
 )
 from graphrag.query.indexer_adapters import (
     read_indexer_communities,
-    read_indexer_entities,
     read_indexer_reports,
 )
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
@@ -33,16 +33,16 @@ def get_llm(llm_model: str = "gpt-4o"):
     api_key = os.environ["GRAPHRAG_LLM_API_KEY"]
     api_base = os.environ["GRAPHRAG_LLM_API_BASE"]
     api_version = "2024-02-15-preview"
-    llm_init_params = {
-        "api_key": api_key,
-        "api_base": api_base,
-        "api_version": api_version,
-        "model": llm_model,
-        "deployment_name": llm_model,
-        "api_type": OpenaiApiType.AzureOpenAI,
-        "max_retries": 50,
-    }
-    llm = ChatOpenAI(**llm_init_params)
+    llm = ChatOpenAI(
+        api_key=api_key,
+        api_base=api_base,
+        api_version=api_version,
+        model=llm_model,
+        deployment_name=llm_model,
+        api_type=OpenaiApiType.AzureOpenAI,
+        max_retries=50,
+        request_timeout=360,
+    )
     token_encoder = tiktoken.encoding_for_model(llm.model)
     print(f"Use LLM model {llm.model}.")
     return llm, token_encoder
@@ -72,7 +72,7 @@ QUERIES = {
 }
 
 
-async def global_search(
+async def dynamic_selection(
     qid: int,
     query: str,
     communities: list[Community],
@@ -81,6 +81,13 @@ async def global_search(
     token_encoder: tiktoken.Encoding,
     use_summary: bool,
 ):
+    filename = (
+        OUTPUT_DIR
+        / f"{llm.model}-{'summary' if use_summary else 'full_content'}"
+        / f"qid{qid:03d}.pkl"
+    )
+    if filename.exists():
+        return
     dynamic_selector = DynamicCommunitySelection(
         community_reports=reports,
         communities=communities,
@@ -90,6 +97,7 @@ async def global_search(
         use_summary=use_summary,
         concurrent_coroutines=4,
         rating_threshold=1,
+        use_logit_bias=False,
     )
 
     start = time()
@@ -136,7 +144,7 @@ def main(llm_model: str, use_summary: bool):
     for qid, query in QUERIES.items():
         print(f"Query ({qid}): {query}")
         asyncio.run(
-            global_search(
+            dynamic_selection(
                 qid=qid,
                 query=query,
                 communities=communities,
@@ -146,50 +154,11 @@ def main(llm_model: str, use_summary: bool):
                 use_summary=use_summary,
             )
         )
-
-
-def method(community_level: int):
-    full_input_dir = Path("examples_notebooks") / "inputs" / "AP"
-    entity_df = pd.read_parquet(full_input_dir / "create_final_nodes.parquet")
-    report_df = pd.read_parquet(
-        full_input_dir / "create_final_community_reports.parquet"
-    )
-    entity_embedding_df = pd.read_parquet(
-        full_input_dir / "create_final_entities.parquet"
-    )
-    community_df = pd.read_parquet(full_input_dir / "create_final_communities.parquet")
-
-    filename = full_input_dir / "community_tree.pkl"
-    if filename.exists():
-        with open(filename, "rb") as file:
-            communities = pickle.load(file)
-    else:
-        communities = read_indexer_communities(community_df, entity_df, report_df)
-    reports = read_indexer_reports(
-        report_df, entity_df, community_level=community_level, dynamic_selection=True
-    )
-    entities = read_indexer_entities(
-        entity_df, entity_embedding_df, community_level=community_level
-    )
-
-    llm, token_encoder = get_llm(llm_model="gpt-4o")
-    dynamic_selector = DynamicCommunitySelection(
-        community_reports=reports,
-        communities=communities,
-        llm=llm,
-        token_encoder=token_encoder,
-        keep_parent=True,
-        use_summary=False,
-        concurrent_coroutines=4,
-        rating_threshold=1,
-        start_with_root=False,
-    )
-    print(dynamic_selector.starting_communities)
+        sleep(0.5)
 
 
 if __name__ == "__main__":
-    method(community_level=1)
-    # main(llm_model="gpt-4o", use_summary=False)
+    main(llm_model="gpt-4o", use_summary=False)
     # main(llm_model="gpt-4o", use_summary=True)
-    # main(llm_model="gpt-4o-mini", use_summary=True)
     # main(llm_model="gpt-4o-mini", use_summary=False)
+    # main(llm_model="gpt-4o-mini", use_summary=True)

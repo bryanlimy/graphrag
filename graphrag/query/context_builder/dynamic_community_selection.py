@@ -75,7 +75,7 @@ class DynamicCommunitySelection:
         self.keep_parent = keep_parent
         self.num_repeats = num_repeats
         self.use_summary = use_summary
-        self.llm_kwargs = {"temperature": 0.0, "max_tokens": 2}
+        self.llm_kwargs = {"temperature": 0.0, "max_tokens": 2000}
         possible_ratings = [1, 2, 3, 4, 5]
         if use_logit_bias:
             # bias the output to the rating tokens
@@ -107,6 +107,7 @@ class DynamicCommunitySelection:
                 *[
                     rate_relevancy(
                         query=query,
+                        community_id=community,
                         description=(
                             self.reports[community].summary
                             if self.use_summary
@@ -122,6 +123,25 @@ class DynamicCommunitySelection:
                 ],
                 desc=f"Level {level}",
             )
+            # gather_results = [
+            #     asyncio.run(
+            #         rate_relevancy(
+            #             query=query,
+            #             community_id=community,
+            #             description=(
+            #                 self.reports[community].summary
+            #                 if self.use_summary
+            #                 else self.reports[community].full_content
+            #             ),
+            #             llm=self.llm,
+            #             token_encoder=self.token_encoder,
+            #             num_repeats=self.num_repeats,
+            #             semaphore=self.semaphore,
+            #             **self.llm_kwargs,
+            #         )
+            #     )
+            #     for community in queue
+            # ]
 
             communities_to_rate = []
             for community, result in zip(queue, gather_results, strict=True):
