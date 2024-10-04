@@ -23,12 +23,7 @@ You are a helpful assistant responsible for deciding whether the provided inform
 
 ---Goal---
 
-On a scale from 1 to 5, please rate how relevant or helpful is the provided information in answering the question:
-1 - Not relevant in any way to the question
-2 - Potentially relevant to the question
-3 - Relevant to the question
-4 - Highly relevant to the question
-5 - It directly answers to the question
+On a scale from 0 to 100, please rate how relevant or helpful is the provided information in answering the question.
 
 ---Information---
 
@@ -42,7 +37,7 @@ On a scale from 1 to 5, please rate how relevant or helpful is the provided info
 
 Please response in the following JSON format with two entries:
 - "reason": the reasoning of your rating, please include information that you have considered.
-- "rating": the relevancy rating from 1 to 5.
+- "rating": the relevancy rating from 0 to 100, where 0 is the least relevant and 100 is the most relevant.
 {{
     "reason": str,
     "rating": int.
@@ -76,33 +71,6 @@ async def rate_relevancy(
         llm_kwargs: additional arguments to pass to the LLM model
         semaphore: asyncio.Semaphore to limit the number of concurrent LLM calls (default: None)
     """
-    # if community_id in (
-    #     "3",
-    #     "9",
-    #     "19",
-    #     "61",
-    #     "62",
-    #     "133",
-    #     "146",
-    #     "150",
-    #     "159",
-    #     "168",
-    #     "172",
-    #     "203",
-    #     "337",
-    #     "348",
-    #     "423",
-    #     "464",
-    #     "466",
-    #     "781",
-    #     "787",
-    #     "829",
-    #     "890",
-    #     "921",
-    #     "1014",
-    #     "60",
-    # ):
-    #     print("here")
     llm_calls, prompt_tokens, output_tokens, ratings = 0, 0, 0, []
     messages = [
         {

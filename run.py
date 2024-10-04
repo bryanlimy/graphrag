@@ -49,26 +49,26 @@ def get_llm(llm_model: str = "gpt-4o"):
 
 
 QUERIES = {
-    9: "Are there any common educational or career paths among the guests?",
-    18: "How do guests generally perceive the impact of privacy laws on technology development?",
-    19: "Do any tech leaders discuss the balance between innovation and ethical considerations?",
-    26: "How do the predictions concerning technology trends differ between industry veterans and newcomers?",
-    27: "How do tech leaders describe the influence of technology on everyday life?",
-    34: "Are there conversations about digital divide and access to technology?",
-    36: "Do the leaders speak about initiatives their companies have taken for societal benefits?",
-    39: "Do any episodes focus on specific technological breakthroughs that have enhanced public services?",
-    41: "Which guests share their experiences with tech initiatives in the education sector?",
-    46: "Which episodes address the challenges faced in balancing user privacy with technological convenience?",
-    49: "Which guests talk about the significance of company culture in driving technological advancements?",
-    62: "How often do guests mention collaboration with other companies or industry rivals?",
-    64: "What are some examples of industry-wide partnerships discussed in the podcast?",
-    71: "Are there anecdotes about successful or unsuccessful pitches for tech-related funding?",
-    75: "How do tech leaders describe the role of mentorship in their career journeys?",
-    79: "What patterns in word choice are noticeable when leaders discuss industry challenges?",
+    # 9: "Are there any common educational or career paths among the guests?",
+    # 18: "How do guests generally perceive the impact of privacy laws on technology development?",
+    # 19: "Do any tech leaders discuss the balance between innovation and ethical considerations?",
+    # 26: "How do the predictions concerning technology trends differ between industry veterans and newcomers?",
+    # 27: "How do tech leaders describe the influence of technology on everyday life?",
+    # 34: "Are there conversations about digital divide and access to technology?",
+    # 36: "Do the leaders speak about initiatives their companies have taken for societal benefits?",
+    # 39: "Do any episodes focus on specific technological breakthroughs that have enhanced public services?",
+    # 41: "Which guests share their experiences with tech initiatives in the education sector?",
+    # 46: "Which episodes address the challenges faced in balancing user privacy with technological convenience?",
+    # 49: "Which guests talk about the significance of company culture in driving technological advancements?",
+    # 62: "How often do guests mention collaboration with other companies or industry rivals?",
+    # 64: "What are some examples of industry-wide partnerships discussed in the podcast?",
+    # 71: "Are there anecdotes about successful or unsuccessful pitches for tech-related funding?",
+    # 75: "How do tech leaders describe the role of mentorship in their career journeys?",
+    # 79: "What patterns in word choice are noticeable when leaders discuss industry challenges?",
     85: "How does the host's questioning style change when talking to leaders from different tech sectors?",
-    97: "How does the flow of the conversation affect the depth of the stories shared by the guests?",
-    101: "What narrative structures do guests rely on when recounting the journey of their companies or own careers?",
-    125: "What new markets or sectors do guests believe will be created by future technologies?",
+    # 97: "How does the flow of the conversation affect the depth of the stories shared by the guests?",
+    # 101: "What narrative structures do guests rely on when recounting the journey of their companies or own careers?",
+    # 125: "What new markets or sectors do guests believe will be created by future technologies?",
 }
 
 
@@ -86,8 +86,8 @@ async def dynamic_selection(
         / f"{llm.model}-{'summary' if use_summary else 'full_content'}"
         / f"qid{qid:03d}.pkl"
     )
-    if filename.exists():
-        return
+    # if filename.exists():
+    #     return
     dynamic_selector = DynamicCommunitySelection(
         community_reports=reports,
         communities=communities,
@@ -96,7 +96,7 @@ async def dynamic_selection(
         keep_parent=True,
         use_summary=use_summary,
         concurrent_coroutines=4,
-        rating_threshold=1,
+        rating_threshold=0,
         use_logit_bias=False,
     )
 
@@ -113,14 +113,9 @@ async def dynamic_selection(
     }
     print(f'Elapse: {result["elapse"]}s')
 
-    filename = (
-        OUTPUT_DIR
-        / f"{llm.model}-{'summary' if use_summary else 'full_content'}"
-        / f"qid{qid:03d}.pkl"
-    )
-    filename.parent.mkdir(parents=True, exist_ok=True)
-    with open(filename, "wb") as file:
-        pickle.dump(result, file)
+    # filename.parent.mkdir(parents=True, exist_ok=True)
+    # with open(filename, "wb") as file:
+    #     pickle.dump(result, file)
 
 
 def main(llm_model: str, use_summary: bool):
