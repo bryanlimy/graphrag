@@ -97,6 +97,9 @@ async def global_search(
         dynamic_selection=dynamic_selection,
     )
     result: SearchResult = await search_engine.asearch(query=query)
+    print(
+        f"LLM calls: {result.llm_calls}, prompt tokens: {result.prompt_tokens}, output tokens: {result.output_tokens}"
+    )
     response = result.response
     context_data = _reformat_context_data(result.context_data)  # type: ignore
     return response, context_data

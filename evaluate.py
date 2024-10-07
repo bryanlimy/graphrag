@@ -37,7 +37,7 @@ def calculate_agreement(ratings1: list[int], ratings2: list[int]):
 
 
 def calculate_retrieval_rate(
-    ground_truth: list[int], ratings: list[int], threshold: int = 2
+    ground_truth: list[int], ratings: list[int], threshold: int = 1
 ):
     assert len(ground_truth) == len(ratings)
     g_count, r_count = 0, 0

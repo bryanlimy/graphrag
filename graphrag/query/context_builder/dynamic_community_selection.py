@@ -71,18 +71,18 @@ class DynamicCommunitySelection:
                 if community.id in self.reports
             ]
         self.llm = llm
-        self.token_encoder = token_encoder
+        self.token_encoder = tiktoken.encoding_for_model(self.llm.model)
         self.keep_parent = keep_parent
         self.num_repeats = num_repeats
         self.use_summary = use_summary
         self.llm_kwargs = {"temperature": 0.0, "max_tokens": 2000}
-        possible_ratings = [0, 1, 2, 3, 4, 5]
-        if use_logit_bias:
-            # bias the output to the rating tokens
-            self.llm_kwargs["logit_bias"] = {
-                self.token_encoder.encode(str(token))[0]: 5
-                for token in possible_ratings
-            }
+        possible_ratings = [1, 2, 3, 4, 5]
+        # if use_logit_bias:
+        #     # bias the output to the rating tokens
+        #     self.llm_kwargs["logit_bias"] = {
+        #         self.token_encoder.encode(str(token))[0]: 5
+        #         for token in possible_ratings
+        #     }
         self.semaphore = asyncio.Semaphore(concurrent_coroutines)
         if rating_threshold not in possible_ratings:
             raise ValueError("rating_threshold must be one of %s" % possible_ratings)
@@ -164,7 +164,7 @@ class DynamicCommunitySelection:
                             if sub_community in self.reports:
                                 communities_to_rate.append(sub_community)
                             else:
-                                log.info(
+                                log.debug(
                                     "dynamic community selection: cannot find community %s in reports",
                                     sub_community,
                                 )

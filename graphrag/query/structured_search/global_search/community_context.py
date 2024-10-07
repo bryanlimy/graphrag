@@ -22,6 +22,17 @@ from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.structured_search.base import GlobalContextBuilder
 
 
+DEFAULT_DYNAMIC_SELECTION_PARAMS = {
+    "keep_parent": False,
+    "num_repeats": 1,
+    "use_summary": False,
+    "use_logit_bias": True,
+    "concurrent_coroutines": 4,
+    "rating_threshold": 2,
+    "start_with_root": True,
+}
+
+
 class GlobalCommunityContext(GlobalContextBuilder):
     """GlobalSearch community context builder."""
 
@@ -33,11 +44,7 @@ class GlobalCommunityContext(GlobalContextBuilder):
         token_encoder: tiktoken.Encoding,
         entities: list[Entity] | None = None,
         dynamic_selection: bool = False,
-        dynamic_selection_keep_parent: bool = False,
-        dynamic_selection_use_summary: bool = False,
-        dynamic_concurrent_coroutines: int = 4,
-        dynamic_selection_threshold: int = 2,
-        dynamic_start_with_root: bool = True,
+        dynamic_selection_params: dict[str, Any] | None = None,
         random_state: int = 86,
     ):
         self.community_reports = community_reports
@@ -50,11 +57,7 @@ class GlobalCommunityContext(GlobalContextBuilder):
                 communities=communities,
                 llm=llm,
                 token_encoder=token_encoder,
-                keep_parent=dynamic_selection_keep_parent,
-                use_summary=dynamic_selection_use_summary,
-                concurrent_coroutines=dynamic_concurrent_coroutines,
-                rating_threshold=dynamic_selection_threshold,
-                start_with_root=dynamic_start_with_root,
+                **dynamic_selection_params,
             )
         self.random_state = random_state
 

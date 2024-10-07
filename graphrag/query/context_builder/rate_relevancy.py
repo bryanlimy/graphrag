@@ -23,7 +23,7 @@ You are a helpful assistant responsible for deciding whether the provided inform
 
 ---Goal---
 
-On a scale from 0 to 100, please rate how relevant or helpful is the provided information in answering the question.
+On a scale from 1 to 5, please rate how relevant or helpful is the provided information in answering the question.
 
 ---Information---
 
@@ -37,7 +37,7 @@ On a scale from 0 to 100, please rate how relevant or helpful is the provided in
 
 Please response in the following JSON format with two entries:
 - "reason": the reasoning of your rating, please include information that you have considered.
-- "rating": the relevancy rating from 0 to 100, where 0 is the least relevant and 100 is the most relevant.
+- "rating": the relevancy rating from 0 to 5, where 0 is the least relevant and 5 is the most relevant.
 {{
     "reason": str,
     "rating": int.
@@ -88,7 +88,7 @@ async def rate_relevancy(
         except KeyError:
             # in case of json parsing error, default to rating 2 so the report is kept.
             # json parsing error should rarely happen.
-            log.info("Error parsing json response, defaulting to rating 2")
+            log.info("Error parsing json response, defaulting to rating 1")
             ratings.append(2)
         llm_calls += 1
         prompt_tokens += num_tokens(messages[0]["content"], token_encoder)

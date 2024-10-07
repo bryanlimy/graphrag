@@ -33,6 +33,8 @@ from graphrag.query.structured_search.local_search.mixed_context import (
 from graphrag.query.structured_search.local_search.search import LocalSearch
 from graphrag.vector_stores import BaseVectorStore
 
+from copy import deepcopy
+
 
 def get_llm(config: GraphRagConfig) -> ChatOpenAI:
     """Get the LLM client."""
@@ -170,16 +172,28 @@ def get_global_search_engine(
     token_encoder = tiktoken.encoding_for_model(config.llm.model)
     gs_config = config.global_search
 
+    mini_config = deepcopy(config)
+    mini_config.llm.model = mini_config.llm.deployment_name = "gpt-4o-mini"
+    mini_llm = get_llm(mini_config)
+
     return GlobalSearch(
         llm=llm,
         context_builder=GlobalCommunityContext(
             community_reports=reports,
             communities=communities,
-            llm=llm,
+            llm=mini_llm,
             token_encoder=token_encoder,
             entities=entities,
             dynamic_selection=dynamic_selection,
-            dynamic_start_with_root=False,
+            dynamic_selection_params={
+                "keep_parent": False,
+                "num_repeats": 1,
+                "use_summary": False,
+                "use_logit_bias": True,
+                "concurrent_coroutines": 4,
+                "rating_threshold": 1,
+                "start_with_root": True,
+            },
         ),
         token_encoder=token_encoder,
         max_data_tokens=gs_config.data_max_tokens,
