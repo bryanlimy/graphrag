@@ -8,7 +8,7 @@ from time import sleep, time
 import pandas as pd
 import tiktoken
 from urllib3 import request
-
+import numpy as np
 from graphrag.model import Community, CommunityReport
 from graphrag.query.context_builder.dynamic_community_selection import (
     DynamicCommunitySelection,
@@ -95,14 +95,19 @@ async def dynamic_selection(
         token_encoder=token_encoder,
         keep_parent=True,
         use_summary=use_summary,
-        concurrent_coroutines=4,
-        rating_threshold=0,
+        concurrent_coroutines=16 if llm.model == "gpt-4o-mini" else 2,
+        rating_threshold=1,
         use_logit_bias=False,
     )
 
     start = time()
     _, llm_info = await dynamic_selector.select(query)
     end = time()
+
+    ratings = np.array(list(llm_info["ratings"].values()))
+    print(
+        f"{np.count_nonzero(ratings >= 2)} out of {len(reports)} communities are relevant."
+    )
 
     result = {
         "ratings": llm_info["ratings"],

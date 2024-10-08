@@ -7,7 +7,7 @@ from sklearn.metrics import cohen_kappa_score
 
 from run import QUERIES
 
-OUTPUT_DIR = Path("results")
+OUTPUT_DIR = Path("results") / "1-to-5"
 
 
 def load_result(output_dir: Path):
