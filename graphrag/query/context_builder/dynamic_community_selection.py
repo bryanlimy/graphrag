@@ -94,90 +94,91 @@ class DynamicCommunitySelection:
         ratings = {}  # store the ratings for each community
         llm_info = {"llm_calls": 0, "prompt_tokens": 0, "output_tokens": 0}
         relevant_communities = set()
-        for community in self.levels["0"]:
-            relevant_communities.add(community)
-        # while queue:
-        #     gather_results = await tqdm.gather(
-        #         *[
-        #             rate_relevancy(
-        #                 query=query,
-        #                 description=(
-        #                     self.reports[community].summary
-        #                     if self.use_summary
-        #                     else self.reports[community].full_content
-        #                 ),
-        #                 llm=self.llm,
-        #                 token_encoder=self.token_encoder,
-        #                 num_repeats=self.num_repeats,
-        #                 semaphore=self.semaphore,
-        #                 **self.llm_kwargs,
-        #             )
-        #             for community in queue
-        #         ],
-        #         desc=f"Level {level}",
-        #     )
-        #     # gather_results = [
-        #     #     asyncio.run(
-        #     #         rate_relevancy(
-        #     #             query=query,
-        #     #             community_id=community,
-        #     #             description=(
-        #     #                 self.reports[community].summary
-        #     #                 if self.use_summary
-        #     #                 else self.reports[community].full_content
-        #     #             ),
-        #     #             llm=self.llm,
-        #     #             token_encoder=self.token_encoder,
-        #     #             num_repeats=self.num_repeats,
-        #     #             semaphore=self.semaphore,
-        #     #             **self.llm_kwargs,
-        #     #         )
-        #     #     )
-        #     #     for community in queue
-        #     # ]
-        #
-        #     communities_to_rate = []
-        #     for community, result in zip(queue, gather_results, strict=True):
-        #         rating = result["rating"]
-        #         log.debug(
-        #             "dynamic community selection: community %s rating %s",
-        #             community,
-        #             rating,
-        #         )
-        #         ratings[community] = rating
-        #         llm_info["llm_calls"] += result["llm_calls"]
-        #         llm_info["prompt_tokens"] += result["prompt_tokens"]
-        #         llm_info["output_tokens"] += result["output_tokens"]
-        #         if rating >= self.rating_threshold:
-        #             relevant_communities.add(community)
-        #             # find children nodes of the current node and append them to the queue
-        #             # TODO check why some sub_communities are NOT in report_df
-        #             if community in self.node2children:
-        #                 for sub_community in self.node2children[community]:
-        #                     if sub_community in self.reports:
-        #                         communities_to_rate.append(sub_community)
-        #                     else:
-        #                         log.debug(
-        #                             "dynamic community selection: cannot find community %s in reports",
-        #                             sub_community,
-        #                         )
-        #             # remove parent node if the current node is deemed relevant
-        #             if not self.keep_parent and community in self.node2parent:
-        #                 relevant_communities.discard(self.node2parent[community])
-        #     queue = communities_to_rate
-        #     queue = []
-        #     level += 1
-        #     if len(queue) == 0 and len(relevant_communities) == 0:
-        #         if (
-        #             self.max_level_when_no_relevant is None
-        #             or level <= self.max_level_when_no_relevant
-        #         ):
-        #             log.info(
-        #                 "dynamic community selection: no relevant community reports, adding all reports at level %s to rate.",
-        #                 level,
-        #             )
-        #             # append all communities at the next level to queue
-        #             queue = self.levels[str(level)]
+        while queue:
+            gather_results = await tqdm.gather(
+                *[
+                    rate_relevancy(
+                        query=query,
+                        description=(
+                            self.reports[community].summary
+                            if self.use_summary
+                            else self.reports[community].full_content
+                        ),
+                        llm=self.llm,
+                        token_encoder=self.token_encoder,
+                        num_repeats=self.num_repeats,
+                        semaphore=self.semaphore,
+                        **self.llm_kwargs,
+                    )
+                    for community in queue
+                ],
+                desc=f"Level {level}",
+            )
+            # gather_results = [
+            #     asyncio.run(
+            #         rate_relevancy(
+            #             query=query,
+            #             community_id=community,
+            #             description=(
+            #                 self.reports[community].summary
+            #                 if self.use_summary
+            #                 else self.reports[community].full_content
+            #             ),
+            #             llm=self.llm,
+            #             token_encoder=self.token_encoder,
+            #             num_repeats=self.num_repeats,
+            #             semaphore=self.semaphore,
+            #             **self.llm_kwargs,
+            #         )
+            #     )
+            #     for community in queue
+            # ]
+
+            communities_to_rate = []
+            for community, result in zip(queue, gather_results, strict=True):
+                rating = result["rating"]
+                log.debug(
+                    "dynamic community selection: community %s rating %s",
+                    community,
+                    rating,
+                )
+                ratings[community] = rating
+                llm_info["llm_calls"] += result["llm_calls"]
+                llm_info["prompt_tokens"] += result["prompt_tokens"]
+                llm_info["output_tokens"] += result["output_tokens"]
+                if rating >= self.rating_threshold:
+                    relevant_communities.add(community)
+                    # find children nodes of the current node and append them to the queue
+                    # TODO check why some sub_communities are NOT in report_df
+                    if community in self.node2children:
+                        for sub_community in self.node2children[community]:
+                            if sub_community in self.reports:
+                                communities_to_rate.append(sub_community)
+                            else:
+                                log.debug(
+                                    "dynamic community selection: cannot find community %s in reports",
+                                    sub_community,
+                                )
+                    # remove parent node if the current node is deemed relevant
+                    if not self.keep_parent and community in self.node2parent:
+                        relevant_communities.discard(self.node2parent[community])
+            queue = communities_to_rate
+            level += 1
+            if (
+                len(queue) == 0
+                and len(relevant_communities) == 0
+                and str(level) in self.levels
+            ):
+                if (
+                    self.max_level_when_no_relevant is None
+                    or level <= self.max_level_when_no_relevant
+                ):
+                    log.info(
+                        "dynamic community selection: no relevant community reports, adding all reports at level %s to rate.",
+                        level,
+                    )
+                    # append all communities at the next level to queue
+                    queue = self.levels[str(level)]
 
         community_reports = [
             self.reports[community] for community in relevant_communities
