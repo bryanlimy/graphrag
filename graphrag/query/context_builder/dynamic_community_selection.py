@@ -76,7 +76,7 @@ class DynamicCommunitySelection:
         self.num_repeats = num_repeats
         self.use_summary = use_summary
         self.llm_kwargs = {"temperature": 0.0, "max_tokens": 2000}
-        possible_ratings = [0, 1, 2, 3, 4, 5]
+        possible_ratings = list(range(11))
         # if use_logit_bias:
         #     # bias the output to the rating tokens
         #     self.llm_kwargs["logit_bias"] = {
