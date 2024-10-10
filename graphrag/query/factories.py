@@ -172,9 +172,12 @@ def get_global_search_engine(
     token_encoder = tiktoken.encoding_for_model(config.llm.model)
     gs_config = config.global_search
 
-    mini_config = deepcopy(config)
-    mini_config.llm.model = mini_config.llm.deployment_name = "gpt-4o-mini"
-    mini_llm = get_llm(mini_config)
+    if dynamic_selection:
+        mini_config = deepcopy(config)
+        mini_config.llm.model = mini_config.llm.deployment_name = "gpt-4o-mini"
+        mini_llm = get_llm(mini_config)
+    else:
+        mini_llm = llm
 
     return GlobalSearch(
         llm=llm,
@@ -189,8 +192,7 @@ def get_global_search_engine(
                 "keep_parent": False,
                 "num_repeats": 1,
                 "use_summary": False,
-                "use_logit_bias": True,
-                "concurrent_coroutines": 4,
+                "concurrent_coroutines": 16,
                 "rating_threshold": 1,
                 "start_with_root": True,
             },

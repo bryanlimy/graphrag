@@ -26,9 +26,8 @@ DEFAULT_DYNAMIC_SELECTION_PARAMS = {
     "keep_parent": False,
     "num_repeats": 1,
     "use_summary": False,
-    "use_logit_bias": True,
     "concurrent_coroutines": 4,
-    "rating_threshold": 2,
+    "rating_threshold": 1,
     "start_with_root": True,
 }
 
@@ -56,7 +55,6 @@ class GlobalCommunityContext(GlobalContextBuilder):
                 community_reports=community_reports,
                 communities=communities,
                 llm=llm,
-                token_encoder=token_encoder,
                 **dynamic_selection_params,
             )
         self.random_state = random_state

@@ -17,33 +17,6 @@ from graphrag.query.llm.text_utils import num_tokens
 
 log = logging.getLogger(__name__)
 
-# RATE_QUERY = """
-# ---Role---
-# You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
-#
-# ---Goal---
-#
-# On a scale from 0 to 10, please rate how relevant or helpful is the provided information in answering the question.
-#
-# ---Information---
-#
-# {description}
-#
-# ---Question---
-#
-# {question}
-#
-# ---Target response length and format---
-#
-# Please response in the following JSON format with two entries:
-# - "reason": the reasoning of your rating, please include information that you have considered.
-# - "rating": the relevancy rating from 0 to 10, where 0 is the least relevant and 10 is the most relevant.
-# {{
-#     "reason": str,
-#     "rating": int.
-# }}
-# """
-
 RATE_QUERY = """
 ---Role---
 You are a helpful assistant responsible for deciding whether the provided information is useful in answering a given question, even if it is only partially relevant.
@@ -63,8 +36,10 @@ On a scale from 0 to 10, please rate how relevant or helpful is the provided inf
 ---Target response length and format---
 
 Please response in the following JSON format with two entries:
+- "reason": the reasoning of your rating, please include information that you have considered.
 - "rating": the relevancy rating from 0 to 10, where 0 is the least relevant and 10 is the most relevant.
 {{
+    "reason": str,
     "rating": int.
 }}
 """
@@ -72,7 +47,6 @@ Please response in the following JSON format with two entries:
 
 async def rate_relevancy(
     query: str,
-    community_id: str,
     description: str,
     llm: ChatOpenAI,
     token_encoder: tiktoken.Encoding,
@@ -81,10 +55,7 @@ async def rate_relevancy(
     **llm_kwargs: Any,
 ) -> dict[str, Any]:
     """
-    Rate the relevancy between the query and description on a scale of 1 to 5.
-
-    A rating of 1 indicates the community is not relevant to the query and a rating of 5
-    indicates the community directly answers the query.
+    Rate the relevancy between the query and description on a scale of 0 to 10.
 
     Args:
         query: the query (or question) to rate against
@@ -111,10 +82,10 @@ async def rate_relevancy(
             _, parsed_response = try_parse_json_object(response)
             ratings.append(parsed_response["rating"])
         except KeyError:
-            # in case of json parsing error, default to rating 2 so the report is kept.
+            # in case of json parsing error, default to rating 1 so the report is kept.
             # json parsing error should rarely happen.
             log.info("Error parsing json response, defaulting to rating 1")
-            ratings.append(2)
+            ratings.append(1)
         llm_calls += 1
         prompt_tokens += num_tokens(messages[0]["content"], token_encoder)
         output_tokens += num_tokens(response, token_encoder)

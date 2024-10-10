@@ -129,11 +129,11 @@ def read_indexer_entities(
     entity_df["community"] = entity_df["community"].astype(int)
     entity_df["rank"] = entity_df["rank"].astype(int)
 
-    # for duplicate entities, keep the one with the highest community level
+    # group entities by name and rank and remove duplicated community IDs
     entity_df = (
-        entity_df.groupby(["name", "rank"]).agg({"community": "max"}).reset_index()
+        entity_df.groupby(["name", "rank"]).agg({"community": set}).reset_index()
     )
-    entity_df["community"] = entity_df["community"].apply(lambda x: [str(x)])
+    entity_df["community"] = entity_df["community"].apply(lambda x: [str(i) for i in x])
     entity_df = entity_df.merge(
         entity_embedding_df, on="name", how="inner"
     ).drop_duplicates(subset=["name"])

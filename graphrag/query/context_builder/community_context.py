@@ -228,7 +228,7 @@ def _rank_report_context(
     weight_column: str | None = "occurrence weight",
     rank_column: str | None = "rank",
 ) -> pd.DataFrame:
-    """Sort report context by community weight and rank if exist."""
+    """Sort report context by community weight and rank if existed."""
     rank_attributes: list[str] = []
     if weight_column:
         rank_attributes.append(weight_column)

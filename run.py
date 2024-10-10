@@ -26,7 +26,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 INPUT_DIR = Path("examples_notebooks") / "inputs" / "podcast"
-OUTPUT_DIR = Path("results") / "0-to-10-rating"
+OUTPUT_DIR = Path("results") / "test"
 
 
 def get_llm(llm_model: str = "gpt-4o"):
@@ -92,12 +92,10 @@ async def dynamic_selection(
         community_reports=reports,
         communities=communities,
         llm=llm,
-        token_encoder=token_encoder,
         keep_parent=True,
         use_summary=use_summary,
         concurrent_coroutines=16 if llm.model == "gpt-4o-mini" else 4,
         rating_threshold=0,
-        use_logit_bias=False,
     )
 
     start = time()

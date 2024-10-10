@@ -78,7 +78,7 @@ def compare(method1: Path, method2: Path):
     #     f"{np.mean(agreements) * 100:.02f}% +/- {np.std(agreements) * 100:.02f}"
     # )
     print(
-        f"Average retrieval rate between {method2} against {method1}: "
+        f"Average retrieval rate of {method2} against {method1}: "
         f"{np.mean(retrieval_rates) * 100:.02f}% +/- {np.std(retrieval_rates) * 100:.02f}\n\n"
     )
 
@@ -101,6 +101,10 @@ def main():
     compare(
         method1=OUTPUT_DIR / "0-to-10-reason-rating" / "gpt-4o-full_content",
         method2=OUTPUT_DIR / "0-to-10-reason-rating" / "gpt-4o-mini-full_content",
+    )
+    compare(
+        method1=OUTPUT_DIR / "0-to-10-reason-rating" / "gpt-4o-mini-full_content",
+        method2=OUTPUT_DIR / "0-to-10-rating" / "gpt-4o-mini-full_content",
     )
     # compare(method1="gpt-4o-full_content", method2="gpt-4o-mini-summary")
     # compare(method1="gpt-4o-mini-full_content", method2="gpt-4o-mini-summary")
