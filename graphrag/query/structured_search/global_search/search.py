@@ -115,12 +115,14 @@ class GlobalSearch(BaseSearch):
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_start(context_result.context_chunks)  # type: ignore
-        map_responses = await asyncio.gather(*[
-            self._map_response_single_batch(
-                context_data=data, query=query, **self.map_llm_params
-            )
-            for data in context_result.context_chunks
-        ])
+        map_responses = await asyncio.gather(
+            *[
+                self._map_response_single_batch(
+                    context_data=data, query=query, **self.map_llm_params
+                )
+                for data in context_result.context_chunks
+            ]
+        )
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_end(map_responses)  # type: ignore
@@ -148,7 +150,7 @@ class GlobalSearch(BaseSearch):
         - Step 1: Run parallel LLM calls on communities' short summaries to generate answer for each batch
         - Step 2: Combine the answers from step 2 to generate the final answer
         """
-        llm_calls, prompt_tokens, output_tokens = 0, 0, 0
+        llm_calls, prompt_tokens, output_tokens = {}, {}, {}
 
         start_time = time.time()
         # Step 1: Generate answers for each batch of community short summaries
@@ -157,25 +159,27 @@ class GlobalSearch(BaseSearch):
             conversation_history=conversation_history,
             **self.context_builder_params,
         )
-        llm_calls += context_result.llm_calls
-        prompt_tokens += context_result.prompt_tokens
-        output_tokens += context_result.output_tokens
+        llm_calls["build_context"] = context_result.llm_calls
+        prompt_tokens["build_context"] = context_result.prompt_tokens
+        output_tokens["build_context"] = context_result.output_tokens
 
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_start(context_result.context_chunks)  # type: ignore
-        map_responses = await asyncio.gather(*[
-            self._map_response_single_batch(
-                context_data=data, query=query, **self.map_llm_params
-            )
-            for data in context_result.context_chunks
-        ])
+        map_responses = await asyncio.gather(
+            *[
+                self._map_response_single_batch(
+                    context_data=data, query=query, **self.map_llm_params
+                )
+                for data in context_result.context_chunks
+            ]
+        )
         if self.callbacks:
             for callback in self.callbacks:
                 callback.on_map_response_end(map_responses)
-        llm_calls += sum(response.llm_calls for response in map_responses)
-        prompt_tokens += sum(response.prompt_tokens for response in map_responses)
-        output_tokens += sum(response.output_tokens for response in map_responses)
+        llm_calls["map"] = sum(response.llm_calls for response in map_responses)
+        prompt_tokens["map"] = sum(response.prompt_tokens for response in map_responses)
+        output_tokens["map"] = sum(response.output_tokens for response in map_responses)
 
         # Step 2: Combine the intermediate answers from step 2 to generate the final answer
         reduce_response = await self._reduce_response(
@@ -184,9 +188,9 @@ class GlobalSearch(BaseSearch):
             **self.reduce_llm_params,
         )
 
-        llm_calls += reduce_response.llm_calls
-        prompt_tokens += reduce_response.prompt_tokens
-        output_tokens += reduce_response.output_tokens
+        llm_calls["reduce"] = reduce_response.llm_calls
+        prompt_tokens["reduce"] = reduce_response.prompt_tokens
+        output_tokens["reduce"] = reduce_response.output_tokens
 
         return GlobalSearchResult(
             response=reduce_response.response,
@@ -313,17 +317,17 @@ class GlobalSearch(BaseSearch):
                         continue
                     if "answer" not in element or "score" not in element:
                         continue
-                    key_points.append({
-                        "analyst": index,
-                        "answer": element["answer"],
-                        "score": element["score"],
-                    })
+                    key_points.append(
+                        {
+                            "analyst": index,
+                            "answer": element["answer"],
+                            "score": element["score"],
+                        }
+                    )
 
             # filter response with score = 0 and rank responses by descending order of score
             filtered_key_points = [
-                point
-                for point in key_points
-                if point["score"] > 0  # type: ignore
+                point for point in key_points if point["score"] > 0  # type: ignore
             ]
 
             if len(filtered_key_points) == 0 and not self.allow_general_knowledge:
@@ -422,17 +426,17 @@ class GlobalSearch(BaseSearch):
                     continue
                 if "answer" not in element or "score" not in element:
                     continue
-                key_points.append({
-                    "analyst": index,
-                    "answer": element["answer"],
-                    "score": element["score"],
-                })
+                key_points.append(
+                    {
+                        "analyst": index,
+                        "answer": element["answer"],
+                        "score": element["score"],
+                    }
+                )
 
         # filter response with score = 0 and rank responses by descending order of score
         filtered_key_points = [
-            point
-            for point in key_points
-            if point["score"] > 0  # type: ignore
+            point for point in key_points if point["score"] > 0  # type: ignore
         ]
 
         if len(filtered_key_points) == 0 and not self.allow_general_knowledge:

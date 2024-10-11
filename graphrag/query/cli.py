@@ -87,7 +87,7 @@ def run_global_search(
 
         return asyncio.run(run_streaming_search())
     # not streaming
-    response, context_data = asyncio.run(
+    response, context_data, result = asyncio.run(
         api.global_search(
             config=config,
             nodes=final_nodes,
@@ -103,7 +103,7 @@ def run_global_search(
     reporter.success(f"Global Search Response:\n{response}")
     # NOTE: we return the response and context data here purely as a complete demonstration of the API.
     # External users should use the API directly to get the response and context data.
-    return response, context_data
+    return response, context_data, result
 
 
 def run_local_search(

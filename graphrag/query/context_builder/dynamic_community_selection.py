@@ -74,7 +74,7 @@ class DynamicCommunitySelection:
         self.use_summary = use_summary
         self.llm_kwargs = {"temperature": 0.0, "max_tokens": 2000}
         self.semaphore = asyncio.Semaphore(concurrent_coroutines)
-        possible_ratings = list(range(11))
+        possible_ratings = list(range(6))
         if rating_threshold not in possible_ratings:
             raise ValueError("rating_threshold must be one of %s" % possible_ratings)
         self.rating_threshold = rating_threshold

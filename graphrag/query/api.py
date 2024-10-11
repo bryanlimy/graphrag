@@ -59,6 +59,7 @@ async def global_search(
 ) -> tuple[
     str | dict[str, Any] | list[dict[str, Any]],
     str | list[pd.DataFrame] | dict[str, pd.DataFrame],
+    SearchResult,
 ]:
     """Perform a global search and return the context data and response.
 
@@ -98,11 +99,13 @@ async def global_search(
     )
     result: SearchResult = await search_engine.asearch(query=query)
     print(
-        f"LLM calls: {result.llm_calls}, prompt tokens: {result.prompt_tokens}, output tokens: {result.output_tokens}"
+        f"LLM calls: {sum(result.llm_calls.values())}, "
+        f"prompt tokens: {sum(result.prompt_tokens.values())}, "
+        f"output tokens: {sum(result.output_tokens.values())}"
     )
     response = result.response
     context_data = _reformat_context_data(result.context_data)  # type: ignore
-    return response, context_data
+    return response, context_data, result
 
 
 @validate_call(config={"arbitrary_types_allowed": True})

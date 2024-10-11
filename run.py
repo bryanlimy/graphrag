@@ -26,7 +26,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 INPUT_DIR = Path("examples_notebooks") / "inputs" / "podcast"
-OUTPUT_DIR = Path("results") / "test"
+OUTPUT_DIR = Path("results") / "0-to-5-reason-rating"
 
 
 def get_llm(llm_model: str = "gpt-4o"):

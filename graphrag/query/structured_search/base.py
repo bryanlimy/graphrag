@@ -30,9 +30,9 @@ class SearchResult:
     # actual text strings that are in the context window, built from context_data
     context_text: str | list[str] | dict[str, str]
     completion_time: float
-    llm_calls: int
-    prompt_tokens: int
-    output_tokens: int
+    llm_calls: int | dict[str, int]
+    prompt_tokens: int | dict[str, int]
+    output_tokens: int | dict[str, int]
 
 
 class BaseSearch(ABC):
