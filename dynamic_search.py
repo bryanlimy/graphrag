@@ -1,11 +1,13 @@
 import logging
-from pathlib import Path
 import pickle
+from pathlib import Path
+
 from graphrag.query.cli import run_global_search
+from graphrag.query.structured_search.global_search.search import GlobalSearchResult
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-logging.getLogger("httpx").setLevel(logging.WARNING)
+# logging.basicConfig(level=logging.INFO, format="%(message)s")
+#
+# logging.getLogger("httpx").setLevel(logging.WARNING)
 
 AP_NEWS_QUESTIONS = {
     "activity_global_question": {
@@ -37,6 +39,21 @@ AP_NEWS_QUESTIONS = {
 OUTPUT_DIR = Path("results") / "AP_news"
 
 
+def estimate_cost(result: GlobalSearchResult, dynamic_search: bool) -> float:
+    cost = 0
+    for name, prompt_tokens in result.prompt_tokens.items():
+        if name == "build_context" and dynamic_search:
+            cost += prompt_tokens * (0.15 / 1_000_000)
+        else:
+            cost += prompt_tokens * (2.5 / 1_000_000)
+    for name, output_tokens in result.output_tokens.items():
+        if name == "build_context" and dynamic_search:
+            cost += output_tokens * (0.6 / 1_000_000)
+        else:
+            cost += output_tokens * (10 / 1_000_000)
+    return cost
+
+
 def run_question(
     question_id: int,
     question: str,
@@ -44,6 +61,7 @@ def run_question(
     community_level: int | None,
     dynamic_selection: bool,
 ):
+    print(f"Question {question_id} {question} (dynamic: {dynamic_selection})")
     filename = (
         output_dir
         / ("dynamic" if dynamic_selection else "fixed")
@@ -52,7 +70,6 @@ def run_question(
     if filename.exists():
         return
     filename.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Question {question_id} {question}")
     _, _, result = run_global_search(
         config_filepath=None,
         data_dir="examples_notebooks/inputs/AP",
@@ -65,6 +82,13 @@ def run_question(
     )
     with open(filename, "wb") as file:
         pickle.dump(result, file)
+    cost = estimate_cost(result=result, dynamic_search=dynamic_selection)
+    print(
+        f"LLM calls: {sum(result.llm_calls.values())}, "
+        f"prompt tokens: {sum(result.prompt_tokens.values())}, "
+        f"output tokens: {sum(result.output_tokens.values())}, "
+        f"estimated cost: ${cost:.02f}."
+    )
 
 
 def main():

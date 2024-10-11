@@ -3,6 +3,8 @@
 
 """Query Factory methods to support CLI."""
 
+from copy import deepcopy
+
 import tiktoken
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
@@ -33,8 +35,6 @@ from graphrag.query.structured_search.local_search.mixed_context import (
 from graphrag.query.structured_search.local_search.search import LocalSearch
 from graphrag.vector_stores import BaseVectorStore
 
-from copy import deepcopy
-
 
 def get_llm(config: GraphRagConfig) -> ChatOpenAI:
     """Get the LLM client."""
@@ -51,7 +51,7 @@ def get_llm(config: GraphRagConfig) -> ChatOpenAI:
         cognitive_services_endpoint = "https://cognitiveservices.azure.com/.default"
     else:
         cognitive_services_endpoint = config.llm.cognitive_services_endpoint
-    print(f"creating llm client with {llm_debug_info}")  # noqa T201
+    # print(f"creating llm client with {llm_debug_info}")  # noqa T201
     return ChatOpenAI(
         api_key=config.llm.api_key,
         azure_ad_token_provider=(
@@ -192,7 +192,7 @@ def get_global_search_engine(
                 "keep_parent": False,
                 "num_repeats": 1,
                 "use_summary": False,
-                "concurrent_coroutines": 16,
+                "concurrent_coroutines": 16 if llm.model == "gpt-4o-mini" else 4,
                 "rating_threshold": 1,
                 "start_with_root": True,
             },

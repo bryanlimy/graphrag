@@ -5,10 +5,11 @@ import pickle
 from pathlib import Path
 from time import sleep, time
 
+import numpy as np
 import pandas as pd
 import tiktoken
 from urllib3 import request
-import numpy as np
+
 from graphrag.model import Community, CommunityReport
 from graphrag.query.context_builder.dynamic_community_selection import (
     DynamicCommunitySelection,
