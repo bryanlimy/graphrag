@@ -84,10 +84,11 @@ def run_question(
         pickle.dump(result, file)
     cost = estimate_cost(result=result, dynamic_search=dynamic_selection)
     print(
-        f"LLM calls: {sum(result.llm_calls.values())}, "
+        f"\nLLM calls: {sum(result.llm_calls.values())}, "
         f"prompt tokens: {sum(result.prompt_tokens.values())}, "
         f"output tokens: {sum(result.output_tokens.values())}, "
-        f"estimated cost: ${cost:.02f}."
+        f"estimated cost: ${cost:.02f}.\n"
+        f"--------------------------------------------------------\n"
     )
 
 
