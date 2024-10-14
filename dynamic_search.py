@@ -40,6 +40,10 @@ OUTPUT_DIR = Path("results") / "AP_news"
 
 
 def estimate_cost(result: GlobalSearchResult, dynamic_search: bool) -> float:
+    """Estimate total cost of the search based on the number of prompt and output tokens.
+
+    Cost per token data is from https://openai.com/api/pricing.
+    """
     cost = 0
     for name, prompt_tokens in result.prompt_tokens.items():
         if name == "build_context" and dynamic_search:
@@ -64,7 +68,11 @@ def run_question(
     print(f"Question {question_id} {question} (dynamic: {dynamic_selection})")
     filename = (
         output_dir
-        / ("dynamic" if dynamic_selection else "fixed")
+        / (
+            f"dynamic_{community_level}"
+            if dynamic_selection
+            else f"fixed_{community_level}"
+        )
         / f"question_{question_id:02d}.pkl"
     )
     if filename.exists():
@@ -93,22 +101,29 @@ def run_question(
 
 
 def main():
-    for question_theme, questions in AP_NEWS_QUESTIONS.items():
-        output_dir = OUTPUT_DIR / question_theme
+    for question_type, questions in AP_NEWS_QUESTIONS.items():
+        output_dir = OUTPUT_DIR / question_type
         for question_id, question in questions.items():
-            run_question(
-                question_id=question_id,
-                question=question,
-                output_dir=output_dir,
-                community_level=None,
-                dynamic_selection=True,
-            )
+            # run_question(
+            #     question_id=question_id,
+            #     question=question,
+            #     output_dir=output_dir,
+            #     community_level=None,
+            #     dynamic_selection=True,
+            # )
+            # run_question(
+            #     question_id=question_id,
+            #     question=question,
+            #     output_dir=output_dir,
+            #     community_level=2,
+            #     dynamic_selection=False,
+            # )
             run_question(
                 question_id=question_id,
                 question=question,
                 output_dir=output_dir,
                 community_level=2,
-                dynamic_selection=False,
+                dynamic_selection=True,
             )
 
 
