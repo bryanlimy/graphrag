@@ -79,7 +79,7 @@ def set_xticks(
     axis: Axes,
     ticks: Union[np.ndarray, list],
     tick_labels: Union[np.ndarray, list] = None,
-    label: str = "",
+    label: str = None,
     tick_fontsize: int = None,
     label_fontsize: int = None,
     rotation: int = None,
@@ -92,7 +92,7 @@ def set_xticks(
         kwargs["rotation"] = rotation
         kwargs["verticalalignment"] = "center"
     axis.set_xticks(ticks, labels=tick_labels, **kwargs)
-    if label:
+    if label is not None:
         axis.set_xlabel(label, fontsize=label_fontsize, color=color, labelpad=label_pad)
 
 
@@ -100,7 +100,7 @@ def set_yticks(
     axis: Axes,
     ticks: Union[np.ndarray, list],
     tick_labels: Union[np.ndarray, list] = None,
-    label: str = "",
+    label: str = None,
     tick_fontsize: int = None,
     label_fontsize: int = None,
     rotation: int = None,
@@ -111,7 +111,7 @@ def set_yticks(
         kwargs["rotation"] = rotation
         kwargs["verticalalignment"] = "center"
     axis.set_yticks(ticks, labels=tick_labels, **kwargs)
-    if label:
+    if label is not None:
         axis.set_ylabel(label, fontsize=label_fontsize, labelpad=label_pad)
 
 
