@@ -21,15 +21,13 @@ matplotlib.rcParams["animation.embed_limit"] = 2**64
 PARAMS_PAD = 2
 PARAMS_LENGTH = 3
 
-plt.rcParams.update(
-    {
-        "mathtext.default": "regular",
-        "xtick.major.pad": PARAMS_PAD,
-        "ytick.major.pad": PARAMS_PAD,
-        "xtick.major.size": PARAMS_LENGTH,
-        "ytick.major.size": PARAMS_LENGTH,
-    }
-)
+plt.rcParams.update({
+    "mathtext.default": "regular",
+    "xtick.major.pad": PARAMS_PAD,
+    "ytick.major.pad": PARAMS_PAD,
+    "xtick.major.size": PARAMS_LENGTH,
+    "ytick.major.size": PARAMS_LENGTH,
+})
 
 
 JET = cm.get_cmap("jet")
@@ -86,7 +84,6 @@ def set_xticks(
     label_pad: int = 2,
     color: str = "black",
 ):
-
     kwargs = {"fontsize": tick_fontsize}
     if rotation is not None:
         kwargs["rotation"] = rotation

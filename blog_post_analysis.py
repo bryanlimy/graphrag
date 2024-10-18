@@ -1,15 +1,17 @@
 import pickle
 from fileinput import filename
-from pathlib import Path
-import numpy as np
-from scipy.stats import sem
-import matplotlib.pyplot as plt
-import seaborn as sns
 from math import ceil
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from graphrag.query.structured_search.global_search.search import GlobalSearchResult
-from dynamic_search import AP_NEWS_QUESTIONS, estimate_cost
+from scipy.stats import sem
+
 import plot
+from dynamic_search import AP_NEWS_QUESTIONS, estimate_cost
+from graphrag.query.structured_search.global_search.search import GlobalSearchResult
 
 OUTPUT_DIR = Path("results") / "AP_news"
 
@@ -299,7 +301,7 @@ def cost_break_down(method: str, filename: Path, title: str = None):
             clip_on=False,
             bottom=heights,
             label=f"{cost_type} prompt "
-            f"({100*np.sum(prompt_costs[cost_type]) / total_cost:.1f}%)",
+            f"({100 * np.sum(prompt_costs[cost_type]) / total_cost:.1f}%)",
         )
         heights += prompt_costs[cost_type]
 
@@ -315,7 +317,7 @@ def cost_break_down(method: str, filename: Path, title: str = None):
             clip_on=False,
             bottom=heights,
             label=f"{cost_type} output "
-            f"({100*np.sum(output_costs[cost_type]) / total_cost:.1f}%)",
+            f"({100 * np.sum(output_costs[cost_type]) / total_cost:.1f}%)",
         )
         heights += output_costs[cost_type]
 
