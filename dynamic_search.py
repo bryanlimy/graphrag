@@ -9,6 +9,58 @@ from graphrag.query.structured_search.global_search.search import GlobalSearchRe
 #
 # logging.getLogger("httpx").setLevel(logging.WARNING)
 
+DATA_GLOBAL_QUESTION = [
+    "Across the dataset, describe the common logistical challenges faced in complex operations.",
+    "Across the dataset, summarize the common measures implemented to address health risks during extreme weather conditions.",
+    "Across the dataset, describe the primary reasons for legal challenges against state regulatory frameworks.",
+    "Across the dataset, describe prevalent challenges in implementing policy changes.",
+    "Across the dataset, describe common legal arguments used to challenge new state laws.",
+    "Across the dataset, what are the most common challenges faced by governments and organizations in addressing misinformation and public trust?",
+    "Across the dataset, describe the common outcomes of state budget decisions on public sector employment and services.",
+    "Across the dataset, describe how legal and public reactions typically manifest in response to state-level executive orders or actions.",
+    "Across the dataset, what are the most common factors influencing budget allocation decisions in different states?",
+    "Across the dataset, how do misinformation and public trust impact societal risks?",
+    "Across the dataset, describe the major geopolitical threats impacting international security.",
+    "Across the dataset, compare how public health strategies vary in response to seasonal health challenges.",
+    "Across the dataset, describe common factors contributing to health-related issues.",
+    "Across the dataset, what are some common factors contributing to accidents and incidents?",
+    "Across the dataset, explain the primary factors contributing to the spread of infectious diseases globally.",
+    "Across the dataset, describe the important and urgent policy changes related to healthcare and education funding.",
+    "Across the dataset, what measures are being implemented to mitigate health and safety risks?",
+    "Across the dataset, how are accountability measures enforced for public officials involved in controversial incidents?",
+    "Across the dataset, explain how political and economic decisions impact healthcare and education funding.",
+    "Across the dataset, describe the common legal consequences for individuals convicted of federal sex abuse charges.",
+    "Across the dataset, describe the effects of Medicaid expansion proposals on healthcare access and quality.",
+    "Across the dataset, describe important and urgent changes in abortion laws and their impact on emergency medical care across different states.",
+    "Across the dataset, explain how legal systems determine the severity of sentences for criminal activities.",
+    "Across the dataset, identify common factors frequently identified as causes of explosion incidents.",
+    "Across the dataset, describe how international alliances influence global security dynamics.",
+    "Across the dataset, describe the emerging and developing ways governments are addressing public health and safety issues.",
+    "Across the dataset, describe the important measures being implemented to address drug-related health crises.",
+    "Across the dataset, how do legal and public reactions vary in response to government actions perceived as limiting constitutional rights?",
+    "Across the dataset, describe how public health initiatives are evolving to tackle emerging health challenges.",
+    "Across the dataset, describe how legal outcomes vary for law enforcement personnel involved in cases of misconduct.",
+    "Across the dataset, identify prevalent causes of accidents during military exercises.",
+    "Across the dataset, describe the major challenges in accessing new medical treatments or technologies.",
+    "Across the dataset, what are the most common factors influencing public health and safety concerns?",
+    "Across the dataset, describe the prevalent legislative challenges in passing significant acts or bills.",
+    "Across the dataset, how is transparency balanced with privacy in the disclosure of personal health issues of high-ranking officials?",
+    "Across the dataset, what are the common legal arguments used to challenge laws perceived to infringe on constitutional rights?",
+    "Across the dataset, what are the trends in judicial decisions regarding the balance between public safety and individual constitutional rights?",
+    "Across the dataset, describe how legislative changes in healthcare policy influence healthcare delivery and outcomes.",
+    "Across the dataset, describe how state-level legislative changes reflect broader national trends in policy making.",
+    "Across the dataset, summarize the important outcomes for workers who continue strikes beyond government-imposed deadlines.",
+    "Across the dataset, describe the common sentences given for arson-related offenses.",
+    "Across the dataset, describe the important measures being adopted to address health risks related to extreme weather conditions.",
+    "Across the dataset, describe the common actions being implemented to improve public health systems.",
+    "Across the dataset, describe the common actions being taken to investigate and prevent mass violence incidents.",
+    "Across the dataset, describe the common trends in vaccination rates for major diseases.",
+    "Across the dataset, identify common causes of transportation accidents.",
+    "Across the dataset, describe actions being taken by governments and organizations to address systemic challenges.",
+    "Across the dataset, describe the common actions being taken by governments to address international trade issues.",
+    "Across the dataset, describe the important measures being taken to prevent fraud in government programs.",
+    "Across the dataset, what are the common outcomes of legal proceedings involving public servants accused of misconduct?",
+]
 AP_NEWS_QUESTIONS = {
     "activity_global_question": {
         1: "Across the dataset, identify common diplomatic engagements.",
@@ -23,16 +75,7 @@ AP_NEWS_QUESTIONS = {
         10: "Across the dataset, explain emerging trends in international policy changes.",
     },
     "data_global_question": {
-        1: "Across the dataset, describe the common logistical challenges faced in complex operations.",
-        2: "Across the dataset, summarize the common measures implemented to address health risks during extreme weather conditions.",
-        3: "Across the dataset, describe the primary reasons for legal challenges against state regulatory frameworks.",
-        4: "Across the dataset, describe prevalent challenges in implementing policy changes.",
-        5: "Across the dataset, describe common legal arguments used to challenge new state laws.",
-        6: "Across the dataset, what are the most common challenges faced by governments and organizations in addressing misinformation and public trust?",
-        7: "Across the dataset, describe the common outcomes of state budget decisions on public sector employment and services.",
-        8: "Across the dataset, describe how legal and public reactions typically manifest in response to state-level executive orders or actions.",
-        9: "Across the dataset, what are the most common factors influencing budget allocation decisions in different states?",
-        10: "Across the dataset, how do misinformation and public trust impact societal risks?",
+        i + 1: DATA_GLOBAL_QUESTION[i] for i in range(len(DATA_GLOBAL_QUESTION))
     },
 }
 
@@ -102,6 +145,8 @@ def run_question(
 
 def main():
     for question_type, questions in AP_NEWS_QUESTIONS.items():
+        if question_type != "data_global_question":
+            continue
         output_dir = OUTPUT_DIR / question_type
         for question_id, question in questions.items():
             # run_question(

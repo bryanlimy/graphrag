@@ -468,20 +468,20 @@ def compare(method1: str, method2: str):
 
 
 if __name__ == "__main__":
-    # compare(method1="dynamic_2", method2="fixed")
+    compare(method1="dynamic_2", method2="fixed")
     # compare(method1="dynamic", method2="fixed")
-    cost_break_down(
-        method="dynamic_2",
-        filename=PLOT_DIR / "cost_break_down_dynamic_level_2.jpg",
-        title="Dynamic selection (level 2)",
-    )
-    cost_break_down(
-        method="dynamic",
-        filename=PLOT_DIR / "cost_break_down_dynamic_all.jpg",
-        title="Dynamic selection (all levels)",
-    )
-    cost_break_down(
-        method="fixed",
-        filename=PLOT_DIR / "cost_break_down_fix_level_2.jpg",
-        title="Static selection (level 2)",
-    )
+    # cost_break_down(
+    #     method="dynamic_2",
+    #     filename=PLOT_DIR / "cost_break_down_dynamic_level_2.jpg",
+    #     title="Dynamic selection (level 2)",
+    # )
+    # cost_break_down(
+    #     method="dynamic",
+    #     filename=PLOT_DIR / "cost_break_down_dynamic_all.jpg",
+    #     title="Dynamic selection (all levels)",
+    # )
+    # cost_break_down(
+    #     method="fixed",
+    #     filename=PLOT_DIR / "cost_break_down_fix_level_2.jpg",
+    #     title="Static selection (level 2)",
+    # )
