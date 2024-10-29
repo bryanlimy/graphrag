@@ -167,7 +167,7 @@ def main():
                 question_id=question_id,
                 question=question,
                 output_dir=output_dir,
-                community_level=2,
+                community_level=1,
                 dynamic_selection=True,
             )
 

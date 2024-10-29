@@ -113,6 +113,7 @@ class DynamicCommunitySelection:
                     for community in queue
                 ],
                 desc=f"Level {level}",
+                leave=False,
             )
             # gather_results = [
             #     asyncio.run(
@@ -174,7 +175,8 @@ class DynamicCommunitySelection:
                     or level <= self.max_level_when_no_relevant
                 ):
                     log.info(
-                        "dynamic community selection: no relevant community reports, adding all reports at level %s to rate.",
+                        "dynamic community selection: no relevant community "
+                        "reports, adding all reports at level %s to rate.",
                         level,
                     )
                     # append all communities at the next level to queue

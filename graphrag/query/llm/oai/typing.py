@@ -12,6 +12,7 @@ OPENAI_RETRY_ERROR_TYPES = (
     # TODO: update these when we update to OpenAI 1+ library
     cast(Any, openai).RateLimitError,
     cast(Any, openai).APIConnectionError,
+    cast(Any, openai).APIError,
     # TODO: replace with comparable OpenAI 1+ error
 )
 

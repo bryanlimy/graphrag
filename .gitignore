@@ -70,3 +70,6 @@ ragtest/
 *.patch
 
 results/
+output/
+questions/
+answers

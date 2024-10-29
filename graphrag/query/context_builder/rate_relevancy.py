@@ -44,6 +44,8 @@ Please response in the following JSON format with two entries:
 }}
 """
 
+import traceback
+
 
 async def rate_relevancy(
     query: str,
